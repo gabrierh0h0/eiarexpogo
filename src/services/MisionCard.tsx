@@ -16,7 +16,12 @@ const MisionCard: React.FC<Props> = ({ mision }) => {
     >
       <Image source={{ uri: mision.url }} style={styles.icon} />
       <View style={styles.textContainer}>
-        <Text style={styles.title}>{mision.nombre}</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>{mision.nombre}</Text>
+          <View style={styles.pointsBadge}>
+            <Text style={styles.pointsText}>+{mision.puntos} pts</Text>
+          </View>
+        </View>
         <Text style={styles.description}>{mision.descripcion}</Text>
       </View>
     </View>
@@ -46,7 +51,25 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontWeight: "bold",
     fontSize: 16,
+    flexShrink: 1,
+  },
+  titleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 4,
+  },
+  pointsBadge: {
+    backgroundColor: "#fb8700",
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginLeft: 10,
+  },
+  pointsText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "bold",
   },
   description: {
     color: "#bde0ea",

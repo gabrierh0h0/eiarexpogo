@@ -11,9 +11,9 @@ import {
 import { Ionicons as Icon } from "@expo/vector-icons";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useNavigation } from "@react-navigation/native";
-import axios from "axios";
+import api from "../config/api";
 import { RootStackParamList } from "../types/navigation";
-import { saveSession } from '../services/authStorage';
+import { useAuth } from "../contexts/AuthContext";
 
 type LoginScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -22,6 +22,7 @@ type LoginScreenNavigationProp = NativeStackNavigationProp<
 
 export const LoginScreen: React.FC = () => {
   const navigation = useNavigation<LoginScreenNavigationProp>();
+  const { setSession } = useAuth();
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -42,16 +43,16 @@ export const LoginScreen: React.FC = () => {
       setLoading(true);
       setErrorMsg(null);
 
-      const response = await axios.post("http://localhost:3000/auth/login", { 
+      const response = await api.post("/auth/login", {
         email: usuario.trim(),
         password,
       });
 
       const { token, user, expiresIn } = response.data;
 
-      await saveSession(token, user);
+      await setSession(token, user);
 
- 
+
       navigation.navigate("Home");
 
     } catch (error: any) {
@@ -163,7 +164,7 @@ export const LoginScreen: React.FC = () => {
     </View>
   );
 
-  
+
 };
 
 const styles = StyleSheet.create({

@@ -1,3 +1,5 @@
+import api from "../config/api";
+
 export type ScanResult = {
   success: boolean;
   data?: string;
@@ -5,15 +7,10 @@ export type ScanResult = {
 };
 
 export async function validateQRData(data: string): Promise<ScanResult> {
-  
-  if (!data) {
-    return { success: false, error: "Código vacío o ilegible." };
+  try {
+    const res = await api.post("/qr/validate", { data });
+    return res.data;
+  } catch (error) {
+    return { success: false, error: "Error de conexión o validación." };
   }
-
-  //Si el código contiene "EIA", lo consideramos válido
-  if (data.includes("EIA")) {
-    return { success: true, data };
-  }
-
-  return { success: false, error: "Código no reconocido." };
 }

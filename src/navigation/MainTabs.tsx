@@ -1,4 +1,5 @@
 import React from "react";
+import { View, ActivityIndicator } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import Icon from "react-native-vector-icons/Ionicons";
 
@@ -6,6 +7,7 @@ import HomeScreen from "../screens/HomeScreen";
 import ScanQRScreen from "../screens/ScanQRScreen";
 import MisionesScreen from "../screens/MisionesScreen";
 import LogrosScreen from "../screens/LogrosScreen";
+import RankingScreen from "../screens/RankingScreen";
 
 // Si ya creaste MenuContext como te propuse:
 import { useMenu } from "../contexts/MenuContext";
@@ -17,12 +19,19 @@ const TAB_SCREENS: Record<string, React.ComponentType<any>> = {
   ScanQR: ScanQRScreen,
   Mision: MisionesScreen,
   Logros: LogrosScreen,
+  Ranking: RankingScreen,
 };
 
 export default function MainTabs() {
   const { menu, loading } = useMenu();
 
-  if (loading || !menu) return null; // o un loader bonito
+  if (loading || !menu) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#023048' }}>
+        <ActivityIndicator size="large" color="#219ebc" />
+      </View>
+    );
+  }
 
   const visibleTabs = menu.tabs
     .filter((t) => t.visible)

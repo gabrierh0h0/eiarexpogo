@@ -1,16 +1,29 @@
 import React from "react";
 import { View, Text, TouchableOpacity, Image, StyleSheet } from "react-native";
+import { Ionicons } from '@expo/vector-icons'; // Import Ionicons
 import { logro } from "../types/logros";
 
 const LogroCard = ({ logro, onPress }: { logro: logro; onPress: () => void }) => {
+  const isUnlocked = logro.unlocked;
+
   return (
-    <View style={styles.card}> 
+    <View style={[styles.card, !isUnlocked && styles.lockedCard]}>
       <Text style={styles.title}>{logro.nombre}</Text>
       <View style={styles.iconContainer}>
-        <Image source={{ uri: logro.url?.trim() }} style={styles.icon} />
+        {isUnlocked ? (
+          <Image source={{ uri: logro.url?.trim() }} style={styles.icon} />
+        ) : (
+          <Ionicons name="lock-closed-outline" size={60} color="#fff" style={styles.lockIcon} />
+        )}
       </View>
-      <TouchableOpacity style={styles.button} onPress={onPress}>
-        <Text style={styles.buttonText}>Más información</Text>
+      <TouchableOpacity
+        style={[styles.button, isUnlocked ? styles.unlockedButton : styles.lockedButton]}
+        onPress={onPress}
+        disabled={!isUnlocked} // Disable button if locked
+      >
+        <Text style={styles.buttonText}>
+          {isUnlocked ? "Más información" : "Logro bloqueado"}
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -57,6 +70,18 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
     fontWeight: "bold",
+  },
+  lockedCard: {
+    opacity: 0.8,
+  },
+  lockIcon: {
+    marginVertical: 20,
+  },
+  unlockedButton: {
+    backgroundColor: "#219ebc",
+  },
+  lockedButton: {
+    backgroundColor: "#5c707b",
   },
 });
 

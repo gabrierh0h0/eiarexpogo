@@ -3,7 +3,6 @@ import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 
 const getBaseURL = () => {
-  // Si defines EXPO_PUBLIC_API_URL, lo usa (recomendado para celular físico)
   const envUrl = process.env.EXPO_PUBLIC_API_URL;
   if (envUrl) return envUrl;
 
@@ -17,10 +16,21 @@ const api = axios.create({
 });
 
 api.interceptors.request.use(async (config) => {
-  const token = await SecureStore.getItemAsync("auth_token");
-  if (token) {
-    config.headers = config.headers ?? {};
-    config.headers.Authorization = `Bearer ${token}`;
+  try {
+    let token: string | null = null;
+
+    if (Platform.OS === "web") {
+      token = localStorage.getItem("auth_token");
+    } else {
+      token = await SecureStore.getItemAsync("auth_token");
+    }
+
+    if (token) {
+      config.headers = config.headers ?? {};
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  } catch (e) {
+    console.warn("Error reading auth token:", e);
   }
   return config;
 });

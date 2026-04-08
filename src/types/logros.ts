@@ -4,4 +4,6 @@ export interface logro {
   descripcion: string;
   url: string;
   puntos: number;
+  unlocked: boolean;
+  requiredMissions: string[];
 }

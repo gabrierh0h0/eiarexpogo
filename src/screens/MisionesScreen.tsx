@@ -11,8 +11,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import { collection, getDocs } from "firebase/firestore";
-import { db } from "../config/firebaseConfig";
+import api from "../config/api";
 import { mision } from "../types/mision";
 import MisionCard from "../services/MisionCard";
 import { LinearGradient } from "expo-linear-gradient";
@@ -29,12 +28,8 @@ export default function MisionesScreen() {
   useEffect(() => {
     const fetchMisiones = async () => {
       try {
-        const querySnapshot = await getDocs(collection(db, "mision"));
-        const data: mision[] = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as mision[];
-        setMisiones(data);
+        const res = await api.get("/misiones");
+        setMisiones(res.data);
       } catch (error) {
         console.error("Error cargando misiones:", error);
       }
@@ -51,7 +46,7 @@ export default function MisionesScreen() {
         <View style={styles.headerContainer}>
           <View style={styles.header}>
             <Pressable onPress={() => setMenuVisible(true)}>
-                <Ionicons name="menu-outline" size={32} color="#fff" />
+              <Ionicons name="menu-outline" size={32} color="#fff" />
             </Pressable>
             <Text style={styles.logoText}>EIAR</Text>
             <Ionicons name="log-out-outline" size={28} color="#fff" />

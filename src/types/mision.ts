@@ -3,5 +3,6 @@ export interface mision {
   nombre: string;
   descripcion: string;
   url: string;
-  completed?: boolean;
+  puntos: number;
+  completed: boolean;
 }

@@ -35,10 +35,10 @@ const toTitleCase = (s: string) =>
     .join(" ");
 
 const COLORS = {
-  topbar: "#136c88",  
-  bg: "#023048",      
+  topbar: "#136c88",
+  bg: "#023048",
   textLight: "#e8f5f7",
-  overlay: "rgba(15,110,119,0.50)", 
+  overlay: "rgba(15,110,119,0.50)",
 };
 
 

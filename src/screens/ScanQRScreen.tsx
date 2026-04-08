@@ -13,6 +13,7 @@ import {
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { Ionicons } from "@expo/vector-icons";
 import { validateQRData } from "../services/QrService";
+import { completeMission } from "../services/progressService";
 
 const STATUSBAR_PAD = (StatusBar.currentHeight ?? 0) + 12;
 
@@ -36,8 +37,19 @@ export default function ScanQRScreen({ navigation }: any) {
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
     if (scanned) return;
     setScanned(true);
-    const result = await validateQRData(data);
-    setScanStatus(result.success ? "success" : "error");
+
+    try {
+      const result = await validateQRData(data);
+      if (result.success && result.data) {
+        // Complete mission on backend
+        await completeMission(result.data);
+        setScanStatus("success");
+      } else {
+        setScanStatus("error");
+      }
+    } catch (error) {
+      setScanStatus("error");
+    }
   };
 
   // Reiniciar el escáner

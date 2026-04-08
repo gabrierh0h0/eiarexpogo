@@ -13,8 +13,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import { collection, getDocs } from "firebase/firestore";
-import { db } from "../config/firebaseConfig";
+import api from "../config/api";
 import { logro } from "../types/logros";
 import LogroCard from "../services/LogroCard";
 import { LinearGradient } from "expo-linear-gradient";
@@ -33,12 +32,8 @@ export default function LogrosScreen() {
   useEffect(() => {
     const fetchLogros = async () => {
       try {
-        const querySnapshot = await getDocs(collection(db, "logros"));
-        const data: logro[] = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as logro[];
-        setLogros(data);
+        const res = await api.get("/logros");
+        setLogros(res.data);
       } catch (error) {
         console.error("Error cargando logros:", error);
       }
@@ -205,7 +200,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   cardWrapper: {
-    width: "47%", 
+    width: "47%",
     marginBottom: 15,
   },
 
