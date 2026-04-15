@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-import React, { useEffect, useState } from "react";
-=======
 import React, { useMemo, useState } from "react";
->>>>>>> origin/Manu_Front
 import {
   View,
   Text,
@@ -17,18 +13,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-<<<<<<< HEAD
-import { auth } from "../config/firebaseConfig";
-import { signOut } from "firebase/auth";
-import { RootStackParamList } from "../types/navigation";
-
-import MenuOverlay from "../screens/MenuOverlay";
-=======
 import { RootStackParamList } from "../types/navigation";
 
 import MenuOverlay from "../screens/MenuOverlay";
 import { useAuth } from "../contexts/AuthContext";
->>>>>>> origin/Manu_Front
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "Home">;
 
@@ -38,17 +26,8 @@ const HEADER_H = Math.round(height * 0.25);
 const LOGO = require("../../assets/LogoPantallaInicio.png");
 const BG_IMG = require("../../assets/home_bloque_a.jpg");
 
-<<<<<<< HEAD
-const toTitleCase = (s: string) =>
-  s
-    .split(/[\s._-]+/)
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
-=======
 const capitalizeWord = (s: string) =>
   s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : "";
->>>>>>> origin/Manu_Front
 
 const COLORS = {
   topbar: "#136c88",
@@ -61,20 +40,6 @@ const COLORS = {
 export default function Inicio() {
   const navigation = useNavigation<Nav>();
   const [menuVisible, setMenuVisible] = useState(false);
-<<<<<<< HEAD
-
-  useEffect(() => {
-
-  }, [navigation]);
-
-  const user = auth.currentUser;
-  const rawName = user?.displayName ?? user?.email?.split("@")[0] ?? "Usuario";
-  const userName = toTitleCase(rawName);
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-=======
   const { profile, user, logout } = useAuth();
 
   const userName = useMemo(() => {
@@ -101,7 +66,6 @@ export default function Inicio() {
   const handleLogout = async () => {
     try {
       await logout();
->>>>>>> origin/Manu_Front
       navigation.reset({
         index: 0,
         routes: [{ name: "Login" as never }],
