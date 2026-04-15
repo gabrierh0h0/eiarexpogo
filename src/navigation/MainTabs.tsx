@@ -8,6 +8,7 @@ import ScanQRScreen from "../screens/ScanQRScreen";
 import MisionesScreen from "../screens/MisionesScreen";
 import LogrosScreen from "../screens/LogrosScreen";
 import RankingScreen from "../screens/RankingScreen";
+import MapScreen from "../screens/MapScreen";
 
 // Si ya creaste MenuContext como te propuse:
 import { useMenu } from "../contexts/MenuContext";
@@ -20,6 +21,7 @@ const TAB_SCREENS: Record<string, React.ComponentType<any>> = {
   Mision: MisionesScreen,
   Logros: LogrosScreen,
   Ranking: RankingScreen,
+  Mapa: MapScreen,
 };
 
 export default function MainTabs() {

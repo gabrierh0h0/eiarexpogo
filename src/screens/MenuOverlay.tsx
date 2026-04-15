@@ -88,7 +88,7 @@ export default function MenuOverlay({ visible, onClose }: Props) {
       { label: "Misiones", icon: "flag-outline" as const, route: "Mision" },
       { label: "Logros", icon: "trophy-outline" as const, route: "Logros" },
       { label: "Ranking", icon: "bar-chart-outline" as const, route: "Ranking" },
-      { label: "Mapa", icon: "map-outline" as const },
+      { label: "Mapa", icon: "map-outline" as const, route: "Mapa" },
       { label: "Configuración", icon: "settings-outline" as const },
     ],
     []
