@@ -7,5 +7,6 @@ export type RootStackParamList = {
   Logros: undefined;
   Ranking: undefined;
   Mapa: undefined;
+  Progreso: undefined;
 
 };
