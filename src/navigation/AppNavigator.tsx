@@ -2,14 +2,12 @@ import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import { LoginScreen } from "../screens/LoginScreen";
-import HomeScreen from "../screens/HomeScreen";
 import RegisterScreen from "../screens/RegisterScreen";
-import ScanQRScreen from "../screens/ScanQRScreen";
-import MisionesScreen from "../screens/MisionesScreen";
-import LogrosScreen from "../screens/LogrosScreen";
 import { RootStackParamList } from "../types/navigation";
 import MainTabs from "./MainTabs";
 import { MenuProvider } from "../contexts/MenuContext";
+import SettingsScreen from "../screens/SettingsScreen";
+import EditProfileScreen from "../screens/EditProfileScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -35,10 +33,7 @@ const AppNavigator = () => {
         options={{ headerShown: false }}
       />
 
-      <Stack.Screen
-        name="Home"
-        options={{ headerShown: false }}
-      >
+      <Stack.Screen name="Home" options={{ headerShown: false }}>
         {() => (
           <MenuProvider>
             <MainTabs />
@@ -46,23 +41,17 @@ const AppNavigator = () => {
         )}
       </Stack.Screen>
 
-      {/* <Stack.Screen
-        name="ScanQR"
-        component={ScanQRScreen}
+      <Stack.Screen
+        name="Configuracion"
+        component={SettingsScreen}
         options={{ headerShown: false }}
       />
 
       <Stack.Screen
-        name="Mision"
-        component={MisionesScreen}
+        name="EditarPerfil"
+        component={EditProfileScreen}
         options={{ headerShown: false }}
       />
-
-      <Stack.Screen
-        name="Logros"
-        component={LogrosScreen}
-        options={{ headerShown: false }}
-      /> */}
     </Stack.Navigator>
   );
 };

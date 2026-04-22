@@ -1,4 +1,3 @@
-// screens/MenuOverlay.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Animated,
@@ -8,12 +7,14 @@ import {
   Text,
   View,
   useWindowDimensions,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../types/navigation";
 import { useAuth } from "../contexts/AuthContext";
+import { getDisplayFullName, getRoleLabel } from "../utils/profile";
 
 const COLORS = {
   lightBlue: "#136c88",
@@ -22,23 +23,6 @@ const COLORS = {
   textMuted: "rgba(255,255,255,0.85)",
   divider: "rgba(255,255,255,0.08)",
 };
-
-function titleCase(s: string) {
-  return s
-    .split(/[\s._-]+/)
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-    .join(" ");
-}
-
-function roleLabel(role?: string | null) {
-  const r = (role || "").toLowerCase().trim();
-  if (["student", "estudiante"].includes(r)) return "Estudiante";
-  if (["teacher", "docente", "profesor"].includes(r)) return "Docente";
-  if (["admin", "administrator", "administrador"].includes(r)) return "Administrador";
-  if (r) return titleCase(r);
-  return "Invitado";
-}
 
 type Props = { visible: boolean; onClose: () => void };
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -52,56 +36,56 @@ export default function MenuOverlay({ visible, onClose }: Props) {
   const { profile, user, isAuthenticated, logout } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
 
-  // Animación del panel
   useEffect(() => {
     Animated.timing(slide, {
       toValue: visible ? 1 : 0,
       duration: 220,
       useNativeDriver: true,
     }).start();
-  }, [visible]);
+  }, [visible, slide]);
 
   const translateX = slide.interpolate({
     inputRange: [0, 1],
     outputRange: [-panelWidth, 0],
   });
 
-  // Nombre mostrado (prioriza perfil del backend)
   const displayName = useMemo(() => {
-    if (profile?.firstName || profile?.lastName) {
-      return `${profile.firstName ?? ""} ${profile.lastName ?? ""}`.trim();
-    }
-    if (user?.email) return titleCase(user.email.split("@")[0]);
-    return "Usuario";
+    return getDisplayFullName(profile, user?.email);
   }, [profile, user]);
 
-  // Rol mostrado (prioriza perfil del backend)
   const displayRole = useMemo(() => {
-    // si no está autenticado, forzamos "Invitado"
     if (!isAuthenticated) return "Invitado";
-    return roleLabel((profile as any)?.role ?? null);
+    return getRoleLabel(profile?.role);
   }, [isAuthenticated, profile]);
 
   const items = useMemo(
     () => [
-      { label: "Inicio", icon: "home-outline" as const, route: "Home" },
-      { label: "Progreso", icon: "stats-chart-outline" as const, route: "Progreso" },
-      { label: "Misiones", icon: "flag-outline" as const, route: "Mision" },
-      { label: "Logros", icon: "trophy-outline" as const, route: "Logros" },
-      { label: "Ranking", icon: "bar-chart-outline" as const, route: "Ranking" },
-      { label: "Mapa", icon: "map-outline" as const, route: "Mapa" },
-      { label: "Configuración", icon: "settings-outline" as const },
+      { label: "Inicio", icon: "home-outline" as const, route: "Home" as const },
+      { label: "Progreso", icon: "stats-chart-outline" as const, route: "Progreso" as const },
+      { label: "Misiones", icon: "flag-outline" as const, route: "Mision" as const },
+      { label: "Logros", icon: "trophy-outline" as const, route: "Logros" as const },
+      { label: "Ranking", icon: "bar-chart-outline" as const, route: "Ranking" as const },
+      { label: "Mapa", icon: "map-outline" as const, route: "Mapa" as const },
+      { label: "Configuración", icon: "settings-outline" as const, route: "Configuracion" as const },
     ],
     []
   );
 
+  const goToEditProfile = () => {
+    onClose();
+    requestAnimationFrame(() => {
+      navigation.navigate("EditarPerfil");
+    });
+  };
+
   const handleLogout = async () => {
     if (loggingOut) return;
+
     try {
       setLoggingOut(true);
       onClose();
-      await logout(); // ✅ borra SecureStore y limpia AuthContext
-      navigation.reset({ index: 0, routes: [{ name: "Login" as never }] });
+      await logout();
+      navigation.reset({ index: 0, routes: [{ name: "Login" }] });
     } catch (e) {
       console.warn(e);
       setLoggingOut(false);
@@ -117,7 +101,6 @@ export default function MenuOverlay({ visible, onClose }: Props) {
       statusBarTranslucent
     >
       <View style={styles.root}>
-        {/* Panel */}
         <Animated.View
           style={[
             styles.panel,
@@ -128,20 +111,26 @@ export default function MenuOverlay({ visible, onClose }: Props) {
             },
           ]}
         >
-          {/* Header */}
-          <View style={[styles.header, { backgroundColor: COLORS.lightBlue }]}>
-            <View style={styles.avatar}>
-              <Ionicons name="person" size={36} color={COLORS.white} />
-            </View>
+          <Pressable
+            style={[styles.header, { backgroundColor: COLORS.lightBlue }]}
+            onPress={goToEditProfile}
+          >
+            {profile?.photoUrl ? (
+              <Image source={{ uri: profile.photoUrl }} style={styles.avatarImage} />
+            ) : (
+              <View style={styles.avatar}>
+                <Ionicons name="person" size={36} color={COLORS.white} />
+              </View>
+            )}
+
             <View style={{ marginLeft: 12, flex: 1 }}>
               <Text numberOfLines={1} style={styles.name}>
                 {displayName}
               </Text>
               <Text style={styles.role}>{displayRole}</Text>
             </View>
-          </View>
+          </Pressable>
 
-          {/* Items (solo visuales) */}
           <View style={styles.itemsWrap}>
             {items.map((it) => (
               <Pressable
@@ -151,12 +140,10 @@ export default function MenuOverlay({ visible, onClose }: Props) {
                   { opacity: pressed ? 0.5 : 1 },
                 ]}
                 onPress={() => {
-                  if (it.route) {
-                    onClose();
-                    requestAnimationFrame(() => {
-                      navigation.navigate(it.route as never);
-                    });
-                  }
+                  onClose();
+                  requestAnimationFrame(() => {
+                    navigation.navigate(it.route);
+                  });
                 }}
               >
                 <Ionicons
@@ -170,7 +157,6 @@ export default function MenuOverlay({ visible, onClose }: Props) {
             ))}
           </View>
 
-          {/* Footer: Cerrar sesión */}
           <View style={styles.footer}>
             <Pressable
               onPress={handleLogout}
@@ -190,7 +176,6 @@ export default function MenuOverlay({ visible, onClose }: Props) {
           </View>
         </Animated.View>
 
-        {/* Scrim */}
         <Pressable style={styles.scrim} onPress={onClose} />
       </View>
     </Modal>
@@ -218,6 +203,12 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.18)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  avatarImage: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(255,255,255,0.18)",
   },
   name: { color: COLORS.white, fontSize: 18, fontWeight: "800", maxWidth: 200 },
   role: { color: COLORS.white, opacity: 0.9, marginTop: 2 },

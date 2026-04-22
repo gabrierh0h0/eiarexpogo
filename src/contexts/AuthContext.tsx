@@ -1,32 +1,47 @@
-// contexts/AuthContext.tsx
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { saveSession, getToken, getUser, clearSession } from '../services/authStorage';
-import { getMe } from "../services/userService";
+import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { saveSession, getToken, getUser, clearSession } from "../services/authStorage";
+import { getMe, UserProfile } from "../services/userService";
+
+type AuthUser = {
+  uid: string;
+  email: string;
+};
 
 type AuthContextType = {
   isAuthenticated: boolean;
-  user: { uid: string; email: string } | null;
+  user: AuthUser | null;
   token: string | null;
-  profile: any | null;
+  profile: UserProfile | null;
   refreshProfile: () => Promise<void>;
   loading: boolean;
   logout: () => Promise<void>;
-  setSession: (token: string, user: any) => Promise<void>;
+  setSession: (token: string, user: AuthUser) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [profile, setProfile] = useState<any | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState<{ uid: string; email: string } | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refreshProfile = async () => {
-    const profile = await getMe();
-    setProfile(profile);
+    const storedToken = await getToken();
+
+    if (!storedToken) {
+      setProfile(null);
+      return;
+    }
+
+    try {
+      const profileResponse = await getMe();
+      setProfile(profileResponse);
+    } catch (error) {
+      console.warn("No se pudo cargar el perfil:", error);
+      setProfile(null);
+    }
   };
 
   useEffect(() => {
@@ -39,19 +54,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setToken(storedToken);
           setUser(storedUser);
           setIsAuthenticated(true);
+          await refreshProfile();
+        } else {
+          setIsAuthenticated(false);
+          setUser(null);
+          setToken(null);
+          setProfile(null);
         }
-        await refreshProfile();
-      } catch (err) {
-        console.error('Error cargando sesión inicial', err);
+      } catch (error) {
+        console.error("Error cargando sesión inicial:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    loadSession();
+    void loadSession();
   }, []);
 
-  const setSession = async (newToken: string, newUser: any) => {
+  const setSession = async (newToken: string, newUser: AuthUser) => {
     await saveSession(newToken, newUser);
     setToken(newToken);
     setUser(newUser);
@@ -65,12 +85,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
     setToken(null);
     setProfile(null);
-    // navigation.reset(...) si quieres forzar redirect
   };
 
   return (
     <AuthContext.Provider
-      value={{ isAuthenticated, user, token, loading, logout, profile, refreshProfile, setSession }}
+      value={{
+        isAuthenticated,
+        user,
+        token,
+        profile,
+        refreshProfile,
+        loading,
+        logout,
+        setSession,
+      }}
     >
       {children}
     </AuthContext.Provider>
@@ -79,6 +107,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth debe usarse dentro de AuthProvider');
+  if (!context) throw new Error("useAuth debe usarse dentro de AuthProvider");
   return context;
 };

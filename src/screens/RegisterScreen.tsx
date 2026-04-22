@@ -18,19 +18,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../types/navigation";
 import Icon from "react-native-vector-icons/Ionicons";
 import { authService } from "../services/authService";
-
-const careers = [
-  "Ingeniería de Sistemas y Computación",
-  "Ingeniería Biomédica",
-  "Ingeniería Mecatrónica",
-  "Ingeniería Administrativa",
-  "Ingeniería Financiera",
-  "Ingeniería Biotecnológica",
-  "Medicina",
-  "Ingeniería Civil",
-  "Ingeniería Ambiental",
-  "Ingeniería Industrial",
-];
+import { careers } from "../constants/careers";
 
 const COLORS = {
   bgSolid: "#023048",

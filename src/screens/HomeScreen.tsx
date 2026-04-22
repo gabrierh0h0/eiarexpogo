@@ -17,6 +17,7 @@ import { RootStackParamList } from "../types/navigation";
 
 import MenuOverlay from "../screens/MenuOverlay";
 import { useAuth } from "../contexts/AuthContext";
+import { getDisplayFullName } from "../utils/profile";
 
 type Nav = NativeStackNavigationProp<RootStackParamList, "Home">;
 
@@ -26,9 +27,6 @@ const HEADER_H = Math.round(height * 0.25);
 const LOGO = require("../../assets/LogoPantallaInicio.png");
 const BG_IMG = require("../../assets/home_bloque_a.jpg");
 
-const capitalizeWord = (s: string) =>
-  s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : "";
-
 const COLORS = {
   topbar: "#136c88",
   bg: "#023048",
@@ -36,31 +34,13 @@ const COLORS = {
   overlay: "rgba(15,110,119,0.50)",
 };
 
-
 export default function Inicio() {
   const navigation = useNavigation<Nav>();
   const [menuVisible, setMenuVisible] = useState(false);
   const { profile, user, logout } = useAuth();
 
   const userName = useMemo(() => {
-    const firstName = String(profile?.firstName ?? "")
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)[0] ?? "";
-
-    const firstLastName = String(profile?.lastName ?? "")
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)[0] ?? "";
-
-    const fullName = [capitalizeWord(firstName), capitalizeWord(firstLastName)]
-      .filter(Boolean)
-      .join(" ");
-
-    if (fullName) return fullName;
-
-    const fallback = user?.email?.split("@")[0] ?? "Usuario";
-    return capitalizeWord(fallback);
+    return getDisplayFullName(profile, user?.email);
   }, [profile, user]);
 
   const handleLogout = async () => {
@@ -77,10 +57,8 @@ export default function Inicio() {
 
   return (
     <View style={styles.container}>
-      {/* HEADER */}
       <View style={[styles.header, { height: HEADER_H }]}>
         <View style={styles.topRow}>
-          {/* AHORA: las 3 rayitas abren el menú */}
           <TouchableOpacity
             onPress={() => setMenuVisible(true)}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -90,7 +68,6 @@ export default function Inicio() {
 
           <Image source={LOGO} style={styles.logoImg} resizeMode="contain" />
 
-          {/* Derecha: SOLO logout (se eliminan los 3 puntitos) */}
           <View style={styles.rightIcons}>
             <TouchableOpacity onPress={handleLogout}>
               <Ionicons name="log-out-outline" size={26} color="#e8f5f7" />
@@ -104,7 +81,6 @@ export default function Inicio() {
         </View>
       </View>
 
-      {/* CUERPO */}
       <View style={styles.body}>
         <Text style={styles.sectionTitle}>
           Desbloquea nuevos lugares y experiencias explorando la universidad
@@ -144,7 +120,6 @@ export default function Inicio() {
         </View>
       </View>
 
-      {/* Menú lateral (solo visual) */}
       <MenuOverlay
         visible={menuVisible}
         onClose={() => setMenuVisible(false)}

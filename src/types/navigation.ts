@@ -1,5 +1,5 @@
 export type RootStackParamList = {
-  Register: undefined
+  Register: undefined;
   Login: undefined;
   Home: undefined;
   ScanQR: undefined;
@@ -8,5 +8,6 @@ export type RootStackParamList = {
   Ranking: undefined;
   Mapa: undefined;
   Progreso: undefined;
-
+  Configuracion: undefined;
+  EditarPerfil: undefined;
 };
