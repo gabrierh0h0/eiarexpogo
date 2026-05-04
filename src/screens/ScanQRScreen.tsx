@@ -24,6 +24,7 @@ export default function ScanQRScreen({ navigation }: any) {
   const [scanStatus, setScanStatus] = useState<
     "preview" | "scanning" | "success" | "error"
   >("preview");
+  const [errorMessage, setErrorMessage] = useState("");
   const [menuVisible, setMenuVisible] = useState(false);
 
   // Solicitar permisos de cámara
@@ -37,6 +38,7 @@ export default function ScanQRScreen({ navigation }: any) {
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
     if (scanned) return;
     setScanned(true);
+    setErrorMessage("");
 
     try {
       const result = await validateQRData(data);
@@ -45,9 +47,11 @@ export default function ScanQRScreen({ navigation }: any) {
         await completeMission(result.data);
         setScanStatus("success");
       } else {
+        setErrorMessage("Código no valido.");
         setScanStatus("error");
       }
     } catch (error) {
+      setErrorMessage("Ocurrió un error al actualizar tu posición en el ranking o progreso.");
       setScanStatus("error");
     }
   };
@@ -56,6 +60,7 @@ export default function ScanQRScreen({ navigation }: any) {
   const resetScanner = () => {
     setScanned(false);
     setScanStatus("preview");
+    setErrorMessage("");
   };
 
   // --- VISTAS SEGÚN EL ESTADO DEL PERMISO ---
@@ -158,7 +163,7 @@ export default function ScanQRScreen({ navigation }: any) {
           <View style={styles.errorTextContainer}>
             <Text style={styles.errorTitle}>EL ESCANEO HA FALLADO</Text>
             <Text style={styles.errorSubtitle}>
-              Escaneo fallido. Por favor, ajusta la cámara y asegúrate de enfocar correctamente el código
+              {errorMessage || "Escaneo fallido. Por favor, ajusta la cámara y asegúrate de enfocar correctamente el código"}
             </Text>
           </View>
 

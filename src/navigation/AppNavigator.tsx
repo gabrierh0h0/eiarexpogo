@@ -4,10 +4,16 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { LoginScreen } from "../screens/LoginScreen";
 import RegisterScreen from "../screens/RegisterScreen";
 import { RootStackParamList } from "../types/navigation";
-import MainTabs from "./MainTabs";
-import { MenuProvider } from "../contexts/MenuContext";
 import SettingsScreen from "../screens/SettingsScreen";
 import EditProfileScreen from "../screens/EditProfileScreen";
+
+import HomeScreen from "../screens/HomeScreen";
+import ScanQRScreen from "../screens/ScanQRScreen";
+import MisionesScreen from "../screens/MisionesScreen";
+import LogrosScreen from "../screens/LogrosScreen";
+import RankingScreen from "../screens/RankingScreen";
+import MapScreen from "../screens/MapScreen";
+import ProgressScreen from "../screens/ProgressScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -26,27 +32,51 @@ const AppNavigator = () => {
         component={LoginScreen}
         options={{ headerShown: false }}
       />
-
       <Stack.Screen
         name="Register"
         component={RegisterScreen}
         options={{ headerShown: false }}
       />
-
-      <Stack.Screen name="Home" options={{ headerShown: false }}>
-        {() => (
-          <MenuProvider>
-            <MainTabs />
-          </MenuProvider>
-        )}
-      </Stack.Screen>
-
+      <Stack.Screen
+        name="Home"
+        component={HomeScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="ScanQR"
+        component={ScanQRScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Mision"
+        component={MisionesScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Logros"
+        component={LogrosScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Ranking"
+        component={RankingScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Mapa"
+        component={MapScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Progreso"
+        component={ProgressScreen}
+        options={{ headerShown: false }}
+      />
       <Stack.Screen
         name="Configuracion"
         component={SettingsScreen}
         options={{ headerShown: false }}
       />
-
       <Stack.Screen
         name="EditarPerfil"
         component={EditProfileScreen}

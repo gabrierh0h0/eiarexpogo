@@ -215,14 +215,6 @@ export default function EditProfileScreen() {
     }
   };
 
-  if (!profile) {
-    return (
-      <View style={styles.loaderWrap}>
-        <ActivityIndicator size="large" color="#ffffff" />
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -237,6 +229,11 @@ export default function EditProfileScreen() {
         </TouchableOpacity>
       </View>
 
+      {!profile ? (
+        <View style={styles.loaderWrap}>
+          <ActivityIndicator size="large" color="#ffffff" />
+        </View>
+      ) : (
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.card}>
           <View style={styles.photoSection}>
@@ -283,13 +280,6 @@ export default function EditProfileScreen() {
             />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={() => setCareerPickerOpen((prev) => !prev)}
-          >
-            <Text style={styles.secondaryButtonText}>Cambiar carrera</Text>
-          </TouchableOpacity>
-
           {careerPickerOpen && (
             <View style={styles.pickerWrap}>
               <Picker
@@ -297,8 +287,9 @@ export default function EditProfileScreen() {
                 onValueChange={(value) => setCareer(String(value))}
                 dropdownIconColor="#ffffff"
                 style={{ color: "#ffffff" }}
+                itemStyle={{ color: "#ffffff", fontSize: 18 }}
               >
-                <Picker.Item label="Selecciona tu carrera" value="" />
+                <Picker.Item label="Selecciona tu carrera" value="" color="#eaf6fb" />
                 {careers.map((item) => (
                   <Picker.Item key={item} label={item} value={item} />
                 ))}
@@ -360,6 +351,7 @@ export default function EditProfileScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      )}
 
       <MenuOverlay visible={menuVisible} onClose={() => setMenuVisible(false)} />
     </View>
@@ -504,7 +496,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   pickerWrap: {
-    backgroundColor: "rgba(255,255,255,0.12)",
+    backgroundColor: COLORS.inputBg,
     borderRadius: 14,
     marginBottom: 12,
     overflow: "hidden",

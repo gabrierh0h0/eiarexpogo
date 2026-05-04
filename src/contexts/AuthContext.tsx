@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
 import { saveSession, getToken, getUser, clearSession } from "../services/authStorage";
 import { getMe, UserProfile } from "../services/userService";
 
@@ -27,7 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     const storedToken = await getToken();
 
     if (!storedToken) {
@@ -42,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.warn("No se pudo cargar el perfil:", error);
       setProfile(null);
     }
-  };
+  }, []);
 
   useEffect(() => {
     const loadSession = async () => {

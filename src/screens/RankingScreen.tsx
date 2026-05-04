@@ -49,33 +49,12 @@ export default function RankingScreen() {
         fetchRanking();
     }, []);
 
-    if (loading) {
-        return (
-            <View style={[styles.container, styles.center]}>
-                <ActivityIndicator size="large" color="#219ebc" />
-            </View>
-        );
-    }
-
-    if (error) {
-        return (
-            <View style={[styles.container, styles.center]}>
-                <Text style={styles.errorText}>{error}</Text>
-                <TouchableOpacity style={styles.retryButton} onPress={fetchRanking}>
-                    <Text style={styles.retryText}>Reintentar</Text>
-                </TouchableOpacity>
-            </View>
-        );
-    }
-
     const top3 = ranking.slice(0, 3);
-    // Sort them as (2, 1, 3) for the podium
     const podiumLayout = [
         top3[1] || null, // #2
         top3[0] || null, // #1
         top3[2] || null, // #3
     ];
-
     const rest = ranking.slice(3);
 
     return (
@@ -88,6 +67,18 @@ export default function RankingScreen() {
                 <Ionicons name="qr-code-outline" size={28} color="#fff" />
             </View>
 
+            {loading ? (
+                <View style={[styles.center, { flex: 1 }]}>
+                    <ActivityIndicator size="large" color="#219ebc" />
+                </View>
+            ) : error ? (
+                <View style={[styles.center, { flex: 1 }]}>
+                    <Text style={styles.errorText}>{error}</Text>
+                    <TouchableOpacity style={styles.retryButton} onPress={fetchRanking}>
+                        <Text style={styles.retryText}>Reintentar</Text>
+                    </TouchableOpacity>
+                </View>
+            ) : (
             <ScrollView contentContainerStyle={styles.scroll}>
                 <Text style={styles.title}>CLASIFICACION</Text>
 
@@ -129,6 +120,7 @@ export default function RankingScreen() {
                     ))}
                 </View>
             </ScrollView>
+            )}
 
             <MenuOverlay visible={menuVisible} onClose={() => setMenuVisible(false)} />
         </View>

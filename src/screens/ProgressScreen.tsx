@@ -36,6 +36,7 @@ type ProgressResponse = {
   completedItems: number;
   totalItems: number;
   progressPercentage: number;
+  rankingPosition?: number | string;
 };
 
 const truncateDescription = (text: string, max = 30) => {
@@ -83,25 +84,6 @@ export default function ProgressScreen() {
     return CIRCUMFERENCE - (CIRCUMFERENCE * percentage) / 100;
   }, [progress?.progressPercentage]);
 
-  if (loading) {
-    return (
-      <View style={[styles.container, styles.centered]}>
-        <ActivityIndicator size="large" color="#6fb6dd" />
-      </View>
-    );
-  }
-
-  if (error || !progress) {
-    return (
-      <View style={[styles.container, styles.centered]}>
-        <Text style={styles.errorText}>{error ?? "No hay datos de progreso."}</Text>
-        <Pressable style={styles.retryButton} onPress={loadData}>
-          <Text style={styles.retryButtonText}>Reintentar</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -121,8 +103,20 @@ export default function ProgressScreen() {
           </Text>
         </View>
 
-        <View style={styles.contentContainer}>
-          <Text style={styles.sectionTitle}>TU PROGRESO</Text>
+        {loading ? (
+          <View style={[styles.centered, { marginTop: 40 }]}>
+            <ActivityIndicator size="large" color="#6fb6dd" />
+          </View>
+        ) : error || !progress ? (
+          <View style={[styles.centered, { marginTop: 40 }]}>
+            <Text style={styles.errorText}>{error ?? "No hay datos de progreso."}</Text>
+            <Pressable style={styles.retryButton} onPress={loadData}>
+              <Text style={styles.retryButtonText}>Reintentar</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.contentContainer}>
+            <Text style={styles.sectionTitle}>TU PROGRESO</Text>
 
           <View style={styles.ringWrapper}>
             <Svg width={RING_SIZE} height={RING_SIZE}>
@@ -160,6 +154,15 @@ export default function ProgressScreen() {
                 PUNTAJE ACTUAL: {progress.totalPoints} puntos
               </Text>
             </View>
+
+            {progress.rankingPosition !== undefined && (
+              <View style={[styles.pointsCard, { backgroundColor: "#e89925" }]}>
+                <Ionicons name="trophy-outline" size={34} color="#fff" />
+                <Text style={styles.pointsText}>
+                  MI RANKING: #{progress.rankingPosition}
+                </Text>
+              </View>
+            )}
 
             <View style={styles.statsCard}>
               <Text style={styles.statLine}>
@@ -224,6 +227,7 @@ export default function ProgressScreen() {
             </View>
           </View>
         </View>
+        )}
       </ScrollView>
 
       <MenuOverlay visible={menuVisible} onClose={() => setMenuVisible(false)} />

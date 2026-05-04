@@ -61,8 +61,6 @@ export default function SettingsScreen() {
 
   const loadPermissions = useCallback(async () => {
     try {
-      setLoading(true);
-
       const [
         serverPermissions,
         notificationPermission,
@@ -94,6 +92,11 @@ export default function SettingsScreen() {
     } catch (error) {
       console.warn(error);
       Alert.alert("Error", "No se pudieron cargar los permisos.");
+      setPermissions((prev) => prev || {
+        notifications: { granted: false, enabled: false },
+        camera: { granted: false, enabled: false },
+        gallery: { granted: false, enabled: false },
+      });
     } finally {
       setLoading(false);
     }
@@ -225,14 +228,6 @@ export default function SettingsScreen() {
     }
   };
 
-  if (loading || !profile || !permissions) {
-    return (
-      <View style={styles.loaderWrap}>
-        <ActivityIndicator size="large" color="#ffffff" />
-      </View>
-    );
-  }
-
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -247,7 +242,12 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      {loading || !profile || !permissions ? (
+        <View style={styles.loaderWrap}>
+          <ActivityIndicator size="large" color="#ffffff" />
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.card}>
           <View style={styles.profileTop}>
             {profile.photoUrl ? (
@@ -345,6 +345,7 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      )}
 
       <MenuOverlay visible={menuVisible} onClose={() => setMenuVisible(false)} />
     </View>
