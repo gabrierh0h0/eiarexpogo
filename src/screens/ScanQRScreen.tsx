@@ -44,35 +44,39 @@ export default function ScanQRScreen({ navigation }: any) {
     setScanned(true);
     setErrorMessage("");
 
+    // DEBUG: ver qué contiene exactamente el QR escaneado
+    console.log("📷 QR escaneado (raw):", JSON.stringify(data));
+
     try {
+      // ---- INTERCEPCIÓN PRE-VALIDACIÓN: juegos que se manejan con su propio flujo ----
+      // Checamos con el dato crudo del escáner ANTES de llamar al backend,
+      // ya que el backend solo valida que contenga "EIA" y devuelve lo mismo.
+
+      // QR del minijuego Food Drop (Tienda de la Confianza)
+      if (isFoodDropQr(data)) {
+        const alreadyDone = await isMissionCompleted(FOOD_DROP_MISSION_ID);
+        if (alreadyDone) {
+          navigation.replace("FoodDropAlreadyPlayed");
+        } else {
+          navigation.replace("FoodDropGame");
+        }
+        return;
+      }
+
+      // QR del minijuego Pacman (Recorrido Campus)
+      if (isPacmanQr(data)) {
+        const alreadyDone = await isMissionCompleted(PACMAN_MISSION_ID);
+        if (alreadyDone) {
+          navigation.replace("PacmanAlreadyPlayed");
+        } else {
+          navigation.replace("PacmanGame");
+        }
+        return;
+      }
+
+      // ---- Flujo normal: validar con backend y completar misión ----
       const result = await validateQRData(data);
       if (result.success && result.data) {
-        // ---- INTERCEPCIÓN: QR del minijuego Food Drop (Tienda de la Confianza) ----
-        // Si el contenido escaneado es el QR especial del Food Drop, NO completamos
-        // la misión aún. La misión se completa cuando termine la partida y se llame
-        // al endpoint `complete-mission-with-score` con el score real del juego.
-        if (isFoodDropQr(result.data)) {
-          const alreadyDone = await isMissionCompleted(FOOD_DROP_MISSION_ID);
-          if (alreadyDone) {
-            navigation.replace("FoodDropAlreadyPlayed");
-          } else {
-            navigation.replace("FoodDropGame");
-          }
-          return;
-        }
-
-        // ---- INTERCEPCIÓN: QR del minijuego Pacman (Recorrido Campus) ----
-        if (isPacmanQr(result.data)) {
-          const alreadyDone = await isMissionCompleted(PACMAN_MISSION_ID);
-          if (alreadyDone) {
-            navigation.replace("PacmanAlreadyPlayed");
-          } else {
-            navigation.replace("PacmanGame");
-          }
-          return;
-        }
-
-        // Flujo normal para los demás QR de misión
         await completeMission(result.data);
         setScanStatus("success");
       } else {
