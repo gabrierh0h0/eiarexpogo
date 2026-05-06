@@ -20,10 +20,6 @@ function formatTime(ms: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-/**
- * HUD superior para el juego Pacman.
- * Muestra: brand EIAR, score, tiempo, vidas (corazones) y progreso de dots.
- */
 function PacmanHUDBase({ score, lives, remainingMs, dotsLeft, totalDots }: Props) {
   const totalLives = PACMAN_CONFIG.initialLives;
   const hearts = Array.from({ length: totalLives }, (_, i) => i < lives);
@@ -46,7 +42,7 @@ function PacmanHUDBase({ score, lives, remainingMs, dotsLeft, totalDots }: Props
       </View>
       <View style={styles.timerRow}>
         <Text style={styles.timerLabel}>
-          Puntos: {totalDots - dotsLeft}/{totalDots}
+          🟡 {totalDots - dotsLeft}/{totalDots}
         </Text>
         <Text style={styles.timer}>{formatTime(remainingMs)}</Text>
       </View>
@@ -56,54 +52,22 @@ function PacmanHUDBase({ score, lives, remainingMs, dotsLeft, totalDots }: Props
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#0C3547',
+    backgroundColor: '#0A1E2E',
     paddingTop: STATUSBAR_PAD,
     paddingBottom: 10,
     paddingHorizontal: 16,
+    borderBottomWidth: 2,
+    borderBottomColor: '#14A3C7',
   },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  brand: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  heartsBlock: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  score: {
-    color: '#fff',
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginRight: 10,
-  },
-  heart: {
-    width: 26,
-    height: 26,
-    marginLeft: 4,
-  },
-  heartEmpty: {
-    opacity: 0.3,
-  },
-  timerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 6,
-  },
-  timerLabel: {
-    color: '#8BD8E8',
-    fontSize: 12,
-  },
-  timer: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  brand: { color: '#14A3C7', fontSize: 24, fontWeight: 'bold' },
+  heartsBlock: { flexDirection: 'row', alignItems: 'center' },
+  score: { color: '#fff', fontSize: 22, fontWeight: 'bold', marginRight: 10 },
+  heart: { width: 26, height: 26, marginLeft: 4 },
+  heartEmpty: { opacity: 0.2 },
+  timerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 6 },
+  timerLabel: { color: '#8BD8E8', fontSize: 13 },
+  timer: { color: '#fff', fontSize: 16, fontWeight: '600' },
 });
 
 export const PacmanHUD = React.memo(PacmanHUDBase);

@@ -1,104 +1,81 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import {
-  MAZE_MAP,
-  MAZE_ROWS,
-  MAZE_COLS,
-  CellType,
-} from '../constants/maze';
+import { Image, View, StyleSheet } from 'react-native';
+import { MAZE_MAP, MAZE_ROWS, MAZE_COLS } from '../constants/maze';
 
 interface Props {
   cellSize: number;
   dots: boolean[][];
+  boardWidth: number;
+  boardHeight: number;
 }
 
 /**
- * Renderiza el laberinto como una cuadrícula de Views.
- * Las paredes se dibujan con color, los caminos con fondo oscuro.
- * Los dots y power-dots se renderizan como círculos sobre las celdas.
+ * Renderiza el laberinto usando el fondo oscuro y paredes estilo pixel-art
+ * con los colores exactos de los sprites del juego.
+ * Dots blancos pequeños, power-dots amarillos grandes.
  */
-function MazeRendererBase({ cellSize, dots }: Props) {
-  const rows: React.ReactNode[] = [];
+function MazeRendererBase({ cellSize, dots, boardWidth, boardHeight }: Props) {
+  const elements: React.ReactNode[] = [];
 
   for (let r = 0; r < MAZE_ROWS; r++) {
-    const cells: React.ReactNode[] = [];
     for (let c = 0; c < MAZE_COLS; c++) {
       const cell = MAZE_MAP[r][c];
-      const isWall = cell === 'W';
-      const isDoor = cell === 'O';
-      const hasDot = dots[r]?.[c] === true;
-      const isPower = cell === 'P' && hasDot;
-      const isNormalDot = cell === 'D' && hasDot;
+      const x = c * cellSize;
+      const y = r * cellSize;
 
-      cells.push(
-        <View
-          key={`${r}-${c}`}
-          style={[
-            {
-              width: cellSize,
-              height: cellSize,
-            },
-            isWall && styles.wall,
-            isDoor && styles.door,
-            !isWall && !isDoor && styles.path,
-          ]}
-        >
-          {isNormalDot && (
-            <View style={[styles.dot, {
-              width: cellSize * 0.2,
-              height: cellSize * 0.2,
-              borderRadius: cellSize * 0.1,
-            }]} />
-          )}
-          {isPower && (
-            <View style={[styles.powerDot, {
-              width: cellSize * 0.45,
-              height: cellSize * 0.45,
-              borderRadius: cellSize * 0.225,
-            }]} />
-          )}
-        </View>,
-      );
+      if (cell === 'W') {
+        // Pared
+        elements.push(
+          <View key={`w-${r}-${c}`} style={{
+            position: 'absolute', left: x, top: y,
+            width: cellSize, height: cellSize,
+            backgroundColor: '#0A4D68',
+            borderWidth: 1,
+            borderColor: '#14A3C7',
+          }} />,
+        );
+      } else if (cell === 'O') {
+        // Puerta ghost house
+        elements.push(
+          <View key={`o-${r}-${c}`} style={{
+            position: 'absolute', left: x, top: y,
+            width: cellSize, height: cellSize,
+            backgroundColor: '#0B2A3C',
+            borderTopWidth: 3,
+            borderTopColor: '#8BD8E8',
+          }} />,
+        );
+      }
+
+      // Dots
+      if (dots[r]?.[c]) {
+        const isPower = cell === 'P';
+        const dotSize = isPower ? cellSize * 0.5 : cellSize * 0.18;
+        elements.push(
+          <View key={`d-${r}-${c}`} style={{
+            position: 'absolute',
+            left: x + (cellSize - dotSize) / 2,
+            top: y + (cellSize - dotSize) / 2,
+            width: dotSize, height: dotSize,
+            borderRadius: dotSize / 2,
+            backgroundColor: isPower ? '#FFD166' : '#FFFFFF',
+          }} />,
+        );
+      }
     }
-    rows.push(
-      <View key={r} style={styles.row}>
-        {cells}
-      </View>,
-    );
   }
 
-  return <View style={styles.container}>{rows}</View>;
+  return (
+    <View style={[styles.container, { width: boardWidth, height: boardHeight }]}>
+      {elements}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-  },
-  row: {
-    flexDirection: 'row',
-  },
-  wall: {
-    backgroundColor: '#0A4D68',
-    borderWidth: 1,
-    borderColor: '#1CA9C9',
-  },
-  door: {
-    backgroundColor: '#0C3547',
-    borderTopWidth: 3,
-    borderTopColor: '#8BD8E8',
-  },
-  path: {
-    backgroundColor: '#0C3547',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dot: {
-    backgroundColor: '#FFFFFF',
-  },
-  powerDot: {
-    backgroundColor: '#FFD166',
+    position: 'absolute', top: 0, left: 0,
+    backgroundColor: '#0B2A3C',
   },
 });
 

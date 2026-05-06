@@ -1,56 +1,35 @@
 /**
- * ENGINE PURO del minijuego Pacman.
- *
- * Responsabilidades:
- *   - Mantener el estado de la partida (pacman, fantasmas, dots, score,
- *     vidas, tiempo, power-up, etc.).
- *   - Avanzar el estado en cada tick (movimiento, colisiones, AI).
- *   - Aplicar las reglas: puntos por dot/power/ghost, vidas, fin de partida.
- *
- * NO toca render, red ni animaciones directamente.
+ * ENGINE del minijuego Pacman con movimiento float (suave).
  */
-
 import { PACMAN_CONFIG } from '../constants/config';
 import {
-  MAZE_MAP,
-  MAZE_ROWS,
-  MAZE_COLS,
-  CellType,
-  isWalkable,
-  wrapCol,
-  countTotalDots,
-  findPacmanSpawn,
-  findGhostSpawns,
+  MAZE_MAP, MAZE_ROWS, MAZE_COLS, CellType,
+  countTotalDots, findPacmanSpawn, findGhostSpawns,
 } from '../constants/maze';
 import { GhostColor } from '../constants/sprites';
 
-// ---- TIPOS ----
-
 export type Direction = 'up' | 'down' | 'left' | 'right' | 'none';
 
-export interface Position {
-  row: number;
-  col: number;
-}
+export interface FPos { row: number; col: number; }
 
 export type GhostMode = 'scatter' | 'chase' | 'frightened' | 'eaten' | 'house';
 
 export interface Ghost {
   id: GhostColor;
-  pos: Position;
+  pos: FPos;
   dir: Direction;
   mode: GhostMode;
-  respawnTimer: number; // ms restantes para respawnear si fue comido
-  exitTimer: number;    // ms antes de salir de la casa
+  respawnTimer: number;
+  exitTimer: number;
 }
 
 export interface PacmanState {
-  pos: Position;
+  pos: FPos;
   dir: Direction;
-  nextDir: Direction; // dirección deseada por el jugador (buffered input)
+  nextDir: Direction;
   mouthOpen: boolean;
   mouthTimer: number;
-  invulnerableMs: number; // ms restantes de invulnerabilidad tras respawn
+  invulnerableMs: number;
 }
 
 export interface GameStats {
@@ -61,205 +40,131 @@ export interface GameStats {
   totalDots: number;
   isOver: boolean;
   endReason: 'time' | 'lives' | 'win' | null;
+  frightened: boolean;
 }
 
 export interface PacmanEngineState {
   stats: GameStats;
   pacman: PacmanState;
   ghosts: Ghost[];
-  dots: boolean[][];    // true si el dot/power sigue ahí
-  maze: CellType[][];   // ref al mapa (inmutable)
-  frightenedMs: number; // ms restantes de power-up global
+  dots: boolean[][];
+  frightenedMs: number;
   elapsedMs: number;
-  cellSize: number;     // px por celda (calculado al crear)
+  cellSize: number;
   boardWidth: number;
   boardHeight: number;
 }
 
-// ---- HELPERS ----
-
-const GHOST_COLORS: GhostColor[] = ['red', 'blue', 'orange', 'pink'];
-const EXIT_DELAYS = [0, 3000, 6000, 9000]; // ms antes de que cada fantasma salga
+const GHOST_COLORS: GhostColor[] = ['red', 'pink', 'blue', 'orange'];
+const EXIT_DELAYS = [0, 3000, 6000, 9000];
 
 const DIR_DELTA: Record<Direction, { dr: number; dc: number }> = {
-  up:    { dr: -1, dc:  0 },
-  down:  { dr:  1, dc:  0 },
-  left:  { dr:  0, dc: -1 },
-  right: { dr:  0, dc:  1 },
-  none:  { dr:  0, dc:  0 },
+  up: { dr: -1, dc: 0 }, down: { dr: 1, dc: 0 },
+  left: { dr: 0, dc: -1 }, right: { dr: 0, dc: 1 },
+  none: { dr: 0, dc: 0 },
 };
 
 const OPPOSITE: Record<Direction, Direction> = {
-  up: 'down',
-  down: 'up',
-  left: 'right',
-  right: 'left',
-  none: 'none',
+  up: 'down', down: 'up', left: 'right', right: 'left', none: 'none',
 };
 
-function canMove(row: number, col: number, dir: Direction): boolean {
-  const d = DIR_DELTA[dir];
-  let nr = row + d.dr;
-  let nc = col + d.dc;
+function isWall(r: number, c: number): boolean {
+  if (r < 0 || r >= MAZE_ROWS) return true;
+  if (c < 0 || c >= MAZE_COLS) {
+    // Túneles
+    if (r >= 0 && r < MAZE_ROWS && MAZE_MAP[r]?.[0] === 'T') return false;
+    return true;
+  }
+  return MAZE_MAP[r][c] === 'W';
+}
 
-  // Túnel horizontal
-  if (nc < 0 || nc >= MAZE_COLS) {
-    const cell = MAZE_MAP[row]?.[col];
-    if (cell === 'T') {
-      nc = wrapCol(nc);
-      return isWalkable(nr, nc);
-    }
+function canEnter(r: number, c: number): boolean {
+  if (c < 0 || c >= MAZE_COLS) {
+    if (r >= 0 && r < MAZE_ROWS && (MAZE_MAP[r]?.[0] === 'T' || MAZE_MAP[r]?.[MAZE_COLS - 1] === 'T')) return true;
     return false;
   }
-
-  return isWalkable(nr, nc);
+  if (r < 0 || r >= MAZE_ROWS) return false;
+  return MAZE_MAP[r][c] !== 'W';
 }
 
-function movePos(pos: Position, dir: Direction): Position {
-  if (dir === 'none') return { ...pos };
+function canMoveDir(row: number, col: number, dir: Direction): boolean {
   const d = DIR_DELTA[dir];
-  let nr = pos.row + d.dr;
-  let nc = pos.col + d.dc;
-
-  // Túnel
-  if (nc < 0 || nc >= MAZE_COLS) {
-    nc = wrapCol(nc);
-  }
-
-  return { row: nr, col: nc };
+  return canEnter(row + d.dr, col + d.dc);
 }
 
-function distance(a: Position, b: Position): number {
+function wrapCol(c: number): number {
+  if (c < 0) return MAZE_COLS - 1;
+  if (c >= MAZE_COLS) return 0;
+  return c;
+}
+
+function dist(a: FPos, b: FPos): number {
   return Math.abs(a.row - b.row) + Math.abs(a.col - b.col);
 }
 
-// ---- CREACIÓN DEL ENGINE ----
-
-export function createPacmanEngine(screenWidth: number, screenHeight: number): PacmanEngineState {
-  const cellSize = Math.floor(screenWidth / MAZE_COLS);
+// ---- CREACIÓN ----
+export function createPacmanEngine(screenW: number, _screenH: number): PacmanEngineState {
+  const cellSize = Math.floor(screenW / MAZE_COLS);
+  const spawn = findPacmanSpawn();
+  const gSpawns = findGhostSpawns();
   const totalDots = countTotalDots();
-  const pacmanSpawn = findPacmanSpawn();
-  const ghostSpawns = findGhostSpawns();
 
-  // Inicializar dots
   const dots: boolean[][] = [];
   for (let r = 0; r < MAZE_ROWS; r++) {
     dots[r] = [];
     for (let c = 0; c < MAZE_COLS; c++) {
-      const cell = MAZE_MAP[r][c];
-      dots[r][c] = cell === 'D' || cell === 'P';
+      dots[r][c] = MAZE_MAP[r][c] === 'D' || MAZE_MAP[r][c] === 'P';
     }
   }
 
-  // Crear fantasmas
   const ghosts: Ghost[] = GHOST_COLORS.map((color, i) => {
-    const spawn = ghostSpawns[i] || ghostSpawns[0] || { row: 8, col: 7 };
+    const gs = gSpawns[i] || gSpawns[0] || { row: 9, col: 7 };
     return {
-      id: color,
-      pos: { ...spawn },
-      dir: 'none' as Direction,
-      mode: 'house' as GhostMode,
-      respawnTimer: 0,
-      exitTimer: EXIT_DELAYS[i],
+      id: color, pos: { row: gs.row, col: gs.col },
+      dir: 'none' as Direction, mode: 'house' as GhostMode,
+      respawnTimer: 0, exitTimer: EXIT_DELAYS[i],
     };
   });
 
   return {
     stats: {
-      score: 0,
-      lives: PACMAN_CONFIG.initialLives,
+      score: 0, lives: PACMAN_CONFIG.initialLives,
       remainingMs: PACMAN_CONFIG.durationMs,
-      dotsLeft: totalDots,
-      totalDots,
-      isOver: false,
-      endReason: null,
+      dotsLeft: totalDots, totalDots, isOver: false, endReason: null,
+      frightened: false,
     },
     pacman: {
-      pos: { ...pacmanSpawn },
-      dir: 'none',
-      nextDir: 'none',
-      mouthOpen: true,
-      mouthTimer: 0,
+      pos: { row: spawn.row, col: spawn.col },
+      dir: 'left', nextDir: 'left', mouthOpen: true, mouthTimer: 0,
       invulnerableMs: 0,
     },
-    ghosts,
-    dots,
-    maze: MAZE_MAP,
-    frightenedMs: 0,
-    elapsedMs: 0,
-    cellSize,
-    boardWidth: cellSize * MAZE_COLS,
-    boardHeight: cellSize * MAZE_ROWS,
+    ghosts, dots, frightenedMs: 0, elapsedMs: 0,
+    cellSize, boardWidth: cellSize * MAZE_COLS, boardHeight: cellSize * MAZE_ROWS,
   };
 }
-
-// ---- INPUT ----
 
 export function setDirection(state: PacmanEngineState, dir: Direction): void {
   state.pacman.nextDir = dir;
 }
 
 // ---- GHOST AI ----
-
-function getAvailableDirs(pos: Position, currentDir: Direction): Direction[] {
-  const dirs: Direction[] = ['up', 'down', 'left', 'right'];
-  const opposite = OPPOSITE[currentDir];
-  return dirs.filter(d => d !== opposite && canMove(pos.row, pos.col, d));
-}
-
-function chooseGhostDir(ghost: Ghost, target: Position): Direction {
-  const available = getAvailableDirs(ghost.pos, ghost.dir);
-  if (available.length === 0) {
-    // Si no hay opciones, invertir
-    const opp = OPPOSITE[ghost.dir];
-    if (canMove(ghost.pos.row, ghost.pos.col, opp)) return opp;
-    return 'none';
-  }
-  if (available.length === 1) return available[0];
-
-  // Elegir la dirección que minimice la distancia al target
-  let bestDir = available[0];
-  let bestDist = Infinity;
-  for (const d of available) {
-    const next = movePos(ghost.pos, d);
-    const dist = distance(next, target);
-    if (dist < bestDist) {
-      bestDist = dist;
-      bestDir = d;
-    }
-  }
-  return bestDir;
-}
-
-function getGhostTarget(ghost: Ghost, pacmanPos: Position, pacmanDir: Direction): Position {
-  switch (ghost.id) {
-    case 'red':
-      // Persigue directamente a Pacman
-      return pacmanPos;
+function getGhostTarget(g: Ghost, pac: FPos, pacDir: Direction): FPos {
+  switch (g.id) {
+    case 'red': return pac;
     case 'pink': {
-      // 4 celdas delante de Pacman
-      const d = DIR_DELTA[pacmanDir];
-      return {
-        row: Math.max(0, Math.min(MAZE_ROWS - 1, pacmanPos.row + d.dr * 4)),
-        col: Math.max(0, Math.min(MAZE_COLS - 1, pacmanPos.col + d.dc * 4)),
-      };
+      const d = DIR_DELTA[pacDir];
+      return { row: Math.max(0, Math.min(MAZE_ROWS - 1, pac.row + d.dr * 4)),
+               col: Math.max(0, Math.min(MAZE_COLS - 1, pac.col + d.dc * 4)) };
     }
-    case 'blue': {
-      // Esquina inferior derecha (scatter-ish)
-      return { row: MAZE_ROWS - 2, col: MAZE_COLS - 2 };
-    }
-    case 'orange': {
-      // Si está lejos, persigue; si está cerca, huye a esquina
-      if (distance(ghost.pos, pacmanPos) > 6) return pacmanPos;
-      return { row: MAZE_ROWS - 2, col: 1 };
-    }
-    default:
-      return pacmanPos;
+    case 'blue': return { row: MAZE_ROWS - 2, col: MAZE_COLS - 2 };
+    case 'orange':
+      return dist(g.pos, pac) > 6 ? pac : { row: MAZE_ROWS - 2, col: 1 };
+    default: return pac;
   }
 }
 
-function getScatterTarget(ghost: Ghost): Position {
-  switch (ghost.id) {
+function getScatterTarget(g: Ghost): FPos {
+  switch (g.id) {
     case 'red': return { row: 0, col: MAZE_COLS - 2 };
     case 'pink': return { row: 0, col: 1 };
     case 'blue': return { row: MAZE_ROWS - 1, col: MAZE_COLS - 2 };
@@ -268,225 +173,239 @@ function getScatterTarget(ghost: Ghost): Position {
   }
 }
 
-function getRandomDir(pos: Position, currentDir: Direction): Direction {
-  const available = getAvailableDirs(pos, currentDir);
-  if (available.length === 0) return OPPOSITE[currentDir];
-  return available[Math.floor(Math.random() * available.length)];
-}
-
-// ---- GHOST HOUSE EXIT ----
-const GHOST_HOUSE_EXIT: Position = { row: 7, col: 7 };
-
-function moveGhostFromHouse(ghost: Ghost): void {
-  // Mueve hacia la puerta de la ghost house
-  if (ghost.pos.row > GHOST_HOUSE_EXIT.row) {
-    ghost.dir = 'up';
-    ghost.pos = movePos(ghost.pos, 'up');
-  } else if (ghost.pos.col < GHOST_HOUSE_EXIT.col) {
-    ghost.dir = 'right';
-    ghost.pos = movePos(ghost.pos, 'right');
-  } else if (ghost.pos.col > GHOST_HOUSE_EXIT.col) {
-    ghost.dir = 'left';
-    ghost.pos = movePos(ghost.pos, 'left');
-  } else {
-    // Ya en la salida
-    ghost.mode = 'chase';
-    ghost.dir = 'left';
+function chooseDir(pos: FPos, curDir: Direction, target: FPos): Direction {
+  const r = Math.round(pos.row);
+  const c = Math.round(pos.col);
+  const dirs: Direction[] = ['up', 'down', 'left', 'right'];
+  const opp = OPPOSITE[curDir];
+  const avail = dirs.filter(d => d !== opp && canMoveDir(r, c, d));
+  if (avail.length === 0) {
+    return canMoveDir(r, c, opp) ? opp : 'none';
   }
+  if (avail.length === 1) return avail[0];
+  let best = avail[0]; let bestD = Infinity;
+  for (const d of avail) {
+    const dd = DIR_DELTA[d];
+    const nr = r + dd.dr; const nc = c + dd.dc;
+    const distance = Math.abs(nr - target.row) + Math.abs(nc - target.col);
+    if (distance < bestD) { bestD = distance; best = d; }
+  }
+  return best;
 }
 
-// ---- TICK PRINCIPAL ----
-
-// Acumuladores de movimiento para controlar velocidad
-interface MoveAccumulator {
-  pacmanAcc: number;
-  ghostAcc: number;
-  frightenedGhostAcc: number;
+function randomDir(pos: FPos, curDir: Direction): Direction {
+  const r = Math.round(pos.row); const c = Math.round(pos.col);
+  const dirs: Direction[] = ['up', 'down', 'left', 'right'];
+  const opp = OPPOSITE[curDir];
+  const avail = dirs.filter(d => d !== opp && canMoveDir(r, c, d));
+  if (avail.length === 0) return canMoveDir(r, c, opp) ? opp : 'none';
+  return avail[Math.floor(Math.random() * avail.length)];
 }
 
-const moveAcc: MoveAccumulator = {
-  pacmanAcc: 0,
-  ghostAcc: 0,
-  frightenedGhostAcc: 0,
-};
+const GHOST_EXIT: FPos = { row: 7, col: 7 };
 
+// ---- MOVIMIENTO FLOAT ----
+function moveEntity(pos: FPos, dir: Direction, speed: number, dtSec: number): FPos {
+  if (dir === 'none') return { ...pos };
+  const d = DIR_DELTA[dir];
+  let nr = pos.row + d.dr * speed * dtSec;
+  let nc = pos.col + d.dc * speed * dtSec;
+  // Wrap tunnels
+  if (nc < -0.5) nc = MAZE_COLS - 0.5;
+  else if (nc >= MAZE_COLS - 0.5 + 1) nc = -0.5;
+  return { row: nr, col: nc };
+}
+
+function isAtCellCenter(pos: FPos): boolean {
+  const dr = Math.abs(pos.row - Math.round(pos.row));
+  const dc = Math.abs(pos.col - Math.round(pos.col));
+  return dr < PACMAN_CONFIG.snapThreshold && dc < PACMAN_CONFIG.snapThreshold;
+}
+
+function snapToGrid(pos: FPos): FPos {
+  return { row: Math.round(pos.row), col: Math.round(pos.col) };
+}
+
+// ---- TICK ----
 export function tickPacmanEngine(state: PacmanEngineState, dtMs: number): PacmanEngineState {
   if (state.stats.isOver) return state;
-
   const dtSec = dtMs / 1000;
 
-  // 1) Tiempo
+  // Tiempo
   state.elapsedMs += dtMs;
   state.stats.remainingMs = Math.max(0, PACMAN_CONFIG.durationMs - state.elapsedMs);
   if (state.stats.remainingMs <= 0) {
-    state.stats.isOver = true;
-    state.stats.endReason = 'time';
-    return state;
+    state.stats.isOver = true; state.stats.endReason = 'time'; return state;
   }
 
-  // 2) Power-up timer
+  // Power-up
   if (state.frightenedMs > 0) {
     state.frightenedMs = Math.max(0, state.frightenedMs - dtMs);
+    state.stats.frightened = state.frightenedMs > 0;
     if (state.frightenedMs <= 0) {
-      // Volver los fantasmas a chase
       for (const g of state.ghosts) {
         if (g.mode === 'frightened') g.mode = 'chase';
       }
     }
   }
 
-  // 3) Invulnerabilidad de Pacman
+  // Invulnerabilidad
   if (state.pacman.invulnerableMs > 0) {
     state.pacman.invulnerableMs = Math.max(0, state.pacman.invulnerableMs - dtMs);
   }
 
-  // 4) Animación boca
+  // Boca
   state.pacman.mouthTimer += dtMs;
   if (state.pacman.mouthTimer >= PACMAN_CONFIG.mouthAnimMs) {
     state.pacman.mouthTimer = 0;
     state.pacman.mouthOpen = !state.pacman.mouthOpen;
   }
 
-  // 5) Mover Pacman (basado en velocidad)
-  moveAcc.pacmanAcc += PACMAN_CONFIG.pacmanSpeed * dtSec;
-  while (moveAcc.pacmanAcc >= 1) {
-    moveAcc.pacmanAcc -= 1;
+  // ---- MOVER PACMAN ----
+  const pac = state.pacman;
+  if (isAtCellCenter(pac.pos)) {
+    const snapped = snapToGrid(pac.pos);
+    pac.pos = snapped;
+    const r = snapped.row; const c = snapped.col;
 
     // Intentar dirección deseada
-    if (state.pacman.nextDir !== 'none' && canMove(state.pacman.pos.row, state.pacman.pos.col, state.pacman.nextDir)) {
-      state.pacman.dir = state.pacman.nextDir;
+    if (pac.nextDir !== 'none' && canMoveDir(r, c, pac.nextDir)) {
+      pac.dir = pac.nextDir;
+    }
+    // Si no puede seguir en la dirección actual, parar
+    if (!canMoveDir(r, c, pac.dir)) {
+      pac.dir = 'none';
     }
 
-    // Mover en la dirección actual
-    if (state.pacman.dir !== 'none' && canMove(state.pacman.pos.row, state.pacman.pos.col, state.pacman.dir)) {
-      state.pacman.pos = movePos(state.pacman.pos, state.pacman.dir);
-
-      // Recoger dot
-      const { row, col } = state.pacman.pos;
-      if (row >= 0 && row < MAZE_ROWS && col >= 0 && col < MAZE_COLS && state.dots[row][col]) {
-        state.dots[row][col] = false;
-        const cell = MAZE_MAP[row][col];
-        if (cell === 'P') {
-          state.stats.score = Math.min(state.stats.score + PACMAN_CONFIG.pointsPerPowerDot, PACMAN_CONFIG.maxScore);
-          // Activar power-up
-          state.frightenedMs = PACMAN_CONFIG.frightenedDurationMs;
-          for (const g of state.ghosts) {
-            if (g.mode === 'chase' || g.mode === 'scatter') {
-              g.mode = 'frightened';
-              g.dir = OPPOSITE[g.dir]; // Invertir dirección
-            }
+    // Recoger dot
+    const wc = c < 0 ? MAZE_COLS - 1 : c >= MAZE_COLS ? 0 : c;
+    if (r >= 0 && r < MAZE_ROWS && wc >= 0 && wc < MAZE_COLS && state.dots[r][wc]) {
+      state.dots[r][wc] = false;
+      const cell = MAZE_MAP[r][wc];
+      if (cell === 'P') {
+        state.stats.score = Math.min(state.stats.score + PACMAN_CONFIG.pointsPerPowerDot, PACMAN_CONFIG.maxScore);
+        state.frightenedMs = PACMAN_CONFIG.frightenedDurationMs;
+        state.stats.frightened = true;
+        for (const g of state.ghosts) {
+          if (g.mode === 'chase' || g.mode === 'scatter') {
+            g.mode = 'frightened';
+            g.dir = OPPOSITE[g.dir];
           }
-        } else {
-          state.stats.score = Math.min(state.stats.score + PACMAN_CONFIG.pointsPerDot, PACMAN_CONFIG.maxScore);
         }
-        state.stats.dotsLeft--;
-
-        // ¿Ganó?
-        if (state.stats.dotsLeft <= 0) {
-          state.stats.isOver = true;
-          state.stats.endReason = 'win';
-          return state;
-        }
+      } else {
+        state.stats.score = Math.min(state.stats.score + PACMAN_CONFIG.pointsPerDot, PACMAN_CONFIG.maxScore);
+      }
+      state.stats.dotsLeft--;
+      if (state.stats.dotsLeft <= 0) {
+        state.stats.isOver = true; state.stats.endReason = 'win'; return state;
       }
     }
   }
 
-  // 6) Mover fantasmas
-  const normalGhostSpeed = PACMAN_CONFIG.ghostSpeed * dtSec;
-  const frightSpeed = PACMAN_CONFIG.frightenedGhostSpeed * dtSec;
+  // Mover pacman
+  if (pac.dir !== 'none') {
+    const newPos = moveEntity(pac.pos, pac.dir, PACMAN_CONFIG.pacmanSpeed, dtSec);
+    // Verificar que no se pase de un muro
+    const nextR = Math.round(newPos.row); const nextC = Math.round(newPos.col);
+    const curR = Math.round(pac.pos.row); const curC = Math.round(pac.pos.col);
+    if (nextR !== curR || nextC !== curC) {
+      // Cruzando a nueva celda - verificar
+      const wNextC = nextC < 0 ? MAZE_COLS - 1 : nextC >= MAZE_COLS ? 0 : nextC;
+      if (canEnter(nextR, wNextC)) {
+        pac.pos = newPos;
+      } else {
+        pac.pos = snapToGrid(pac.pos); // Quedarse en celda actual
+        pac.dir = 'none';
+      }
+    } else {
+      pac.pos = newPos;
+    }
+  }
 
+  // ---- MOVER FANTASMAS ----
   for (const ghost of state.ghosts) {
-    // Respawn timer
     if (ghost.mode === 'eaten') {
       ghost.respawnTimer -= dtMs;
       if (ghost.respawnTimer <= 0) {
-        // Respawnear en la casa
         const spawns = findGhostSpawns();
         const idx = GHOST_COLORS.indexOf(ghost.id);
-        const spawn = spawns[idx] || spawns[0] || { row: 8, col: 7 };
-        ghost.pos = { ...spawn };
-        ghost.mode = 'house';
-        ghost.exitTimer = 2000;
-        ghost.dir = 'none';
+        const sp = spawns[idx] || spawns[0] || { row: 9, col: 7 };
+        ghost.pos = { row: sp.row, col: sp.col };
+        ghost.mode = 'house'; ghost.exitTimer = 2000; ghost.dir = 'none';
       }
       continue;
     }
 
-    // Ghost house exit timer
     if (ghost.mode === 'house') {
       ghost.exitTimer -= dtMs;
       if (ghost.exitTimer <= 0) {
-        moveGhostFromHouse(ghost);
+        // Mover hacia salida
+        if (ghost.pos.row > GHOST_EXIT.row) {
+          ghost.pos.row -= PACMAN_CONFIG.ghostSpeed * dtSec;
+          if (ghost.pos.row <= GHOST_EXIT.row) ghost.pos.row = GHOST_EXIT.row;
+        } else if (Math.abs(ghost.pos.col - GHOST_EXIT.col) > 0.3) {
+          ghost.pos.col += (ghost.pos.col < GHOST_EXIT.col ? 1 : -1) * PACMAN_CONFIG.ghostSpeed * dtSec;
+        } else {
+          ghost.pos = { ...GHOST_EXIT };
+          ghost.mode = 'chase'; ghost.dir = 'left';
+        }
       }
       continue;
     }
 
     // Movimiento normal
-    const isFrightened = ghost.mode === 'frightened';
-    const speed = isFrightened ? frightSpeed : normalGhostSpeed;
+    const isFright = ghost.mode === 'frightened';
+    const speed = isFright ? PACMAN_CONFIG.frightenedGhostSpeed : PACMAN_CONFIG.ghostSpeed;
 
-    // Acumular movimiento
-    const accKey = isFrightened ? 'frightenedGhostAcc' : 'ghostAcc';
-    // Usamos un acumulador per-ghost simplificado
-    // Para simplificar, movemos cuando el dt acumulado >= 1 celda
-    const stepsThisTick = Math.floor(speed + 0.5); // ~1 step per tick at normal speed
+    if (isAtCellCenter(ghost.pos)) {
+      ghost.pos = snapToGrid(ghost.pos);
+      const gr = ghost.pos.row; const gc = ghost.pos.col;
 
-    for (let step = 0; step < Math.max(1, stepsThisTick > 0 ? 1 : 0); step++) {
-      if (speed < 0.3 && Math.random() > speed) continue; // skip si muy lento
-
-      let target: Position;
-      if (isFrightened) {
-        // Movimiento aleatorio cuando asustado
-        ghost.dir = getRandomDir(ghost.pos, ghost.dir);
+      if (isFright) {
+        ghost.dir = randomDir(ghost.pos, ghost.dir);
       } else {
-        // Determinar modo basado en tiempo
         const cycleMs = state.elapsedMs % 27000;
-        const isScatter = cycleMs < 7000;
-
-        if (isScatter) {
-          target = getScatterTarget(ghost);
-        } else {
-          target = getGhostTarget(ghost, state.pacman.pos, state.pacman.dir);
-        }
-        ghost.dir = chooseGhostDir(ghost, target!);
+        const target = cycleMs < 7000
+          ? getScatterTarget(ghost)
+          : getGhostTarget(ghost, pac.pos, pac.dir);
+        ghost.dir = chooseDir(ghost.pos, ghost.dir, target);
       }
+    }
 
-      if (ghost.dir !== 'none' && canMove(ghost.pos.row, ghost.pos.col, ghost.dir)) {
-        ghost.pos = movePos(ghost.pos, ghost.dir);
+    if (ghost.dir !== 'none') {
+      const newPos = moveEntity(ghost.pos, ghost.dir, speed, dtSec);
+      const nextR = Math.round(newPos.row); const nextC = Math.round(newPos.col);
+      const curR = Math.round(ghost.pos.row); const curC = Math.round(ghost.pos.col);
+      if (nextR !== curR || nextC !== curC) {
+        const wNextC = nextC < 0 ? MAZE_COLS - 1 : nextC >= MAZE_COLS ? 0 : nextC;
+        if (canEnter(nextR, wNextC)) {
+          ghost.pos = newPos;
+        } else {
+          ghost.pos = snapToGrid(ghost.pos);
+        }
+      } else {
+        ghost.pos = newPos;
       }
     }
   }
 
-  // 7) Colisiones Pacman ↔ Fantasmas
+  // ---- COLISIONES ----
   for (const ghost of state.ghosts) {
     if (ghost.mode === 'eaten' || ghost.mode === 'house') continue;
-    if (ghost.pos.row === state.pacman.pos.row && ghost.pos.col === state.pacman.pos.col) {
+    const d = dist(ghost.pos, pac.pos);
+    if (d < 0.7) {
       if (ghost.mode === 'frightened') {
-        // Comerse al fantasma
-        state.stats.score = Math.min(
-          state.stats.score + PACMAN_CONFIG.pointsPerGhost,
-          PACMAN_CONFIG.maxScore,
-        );
-        ghost.mode = 'eaten';
-        ghost.respawnTimer = PACMAN_CONFIG.ghostRespawnMs;
-      } else if (state.pacman.invulnerableMs <= 0) {
-        // Pacman muere
+        state.stats.score = Math.min(state.stats.score + PACMAN_CONFIG.pointsPerGhost, PACMAN_CONFIG.maxScore);
+        ghost.mode = 'eaten'; ghost.respawnTimer = PACMAN_CONFIG.ghostRespawnMs;
+      } else if (pac.invulnerableMs <= 0) {
         state.stats.lives--;
         if (state.stats.lives <= 0) {
-          state.stats.lives = 0;
-          state.stats.isOver = true;
-          state.stats.endReason = 'lives';
-          return state;
+          state.stats.lives = 0; state.stats.isOver = true; state.stats.endReason = 'lives'; return state;
         }
-        // Respawnear Pacman
         const spawn = findPacmanSpawn();
-        state.pacman.pos = { ...spawn };
-        state.pacman.dir = 'none';
-        state.pacman.nextDir = 'none';
-        state.pacman.invulnerableMs = PACMAN_CONFIG.respawnInvulnerableMs;
-
-        // Reset acumuladores
-        moveAcc.pacmanAcc = 0;
+        pac.pos = { row: spawn.row, col: spawn.col };
+        pac.dir = 'left'; pac.nextDir = 'left';
+        pac.invulnerableMs = PACMAN_CONFIG.respawnInvulnerableMs;
       }
     }
   }
@@ -494,6 +413,4 @@ export function tickPacmanEngine(state: PacmanEngineState, dtMs: number): Pacman
   return state;
 }
 
-export function snapshotPacmanStats(state: PacmanEngineState): GameStats {
-  return { ...state.stats };
-}
+export function snapshotPacmanStats(s: PacmanEngineState): GameStats { return { ...s.stats }; }

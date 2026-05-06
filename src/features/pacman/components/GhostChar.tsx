@@ -1,6 +1,6 @@
 import React from 'react';
 import { Image, StyleSheet, View } from 'react-native';
-import { GHOST_SPRITES, GhostColor } from '../constants/sprites';
+import { GHOST_SPRITES } from '../constants/sprites';
 import { Ghost } from '../engine/pacmanEngine';
 
 interface Props {
@@ -9,31 +9,38 @@ interface Props {
 }
 
 /**
- * Render de un fantasma con color según su id y estado visual
- * según su mode (normal, frightened=azul parpadeante, eaten=invisible).
+ * Fantasma usando los sprites reales (fantasmaRojo, Azul, etc).
+ * Cuando está frightened se vuelve azul oscuro.
+ * Cuando eaten/house no se muestra.
  */
 function GhostCharBase({ ghost, cellSize }: Props) {
   if (ghost.mode === 'eaten' || ghost.mode === 'house') return null;
 
   const isFrightened = ghost.mode === 'frightened';
+  const size = cellSize * 1.3;
 
   return (
     <View
       pointerEvents="none"
-      style={[
-        styles.container,
-        {
-          left: ghost.pos.col * cellSize,
-          top: ghost.pos.row * cellSize,
-          width: cellSize,
-          height: cellSize,
-        },
-      ]}
+      style={{
+        position: 'absolute',
+        left: ghost.pos.col * cellSize + (cellSize - size) / 2,
+        top: ghost.pos.row * cellSize + (cellSize - size) / 2,
+        width: size,
+        height: size,
+        zIndex: 5,
+      }}
     >
       {isFrightened ? (
-        <View style={[styles.frightenedBody, { borderRadius: cellSize / 2 }]}>
-          <View style={styles.frightenedEye} />
-          <View style={styles.frightenedEye} />
+        <View style={[styles.frightenedBody, {
+          width: size * 0.8, height: size * 0.8,
+          borderRadius: size * 0.4,
+          marginLeft: size * 0.1, marginTop: size * 0.1,
+        }]}>
+          <View style={styles.frightenedEyes}>
+            <View style={styles.fEye} />
+            <View style={styles.fEye} />
+          </View>
         </View>
       ) : (
         <Image
@@ -47,30 +54,20 @@ function GhostCharBase({ ghost, cellSize }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    position: 'absolute',
-    zIndex: 5,
-  },
-  image: {
-    width: '100%',
-    height: '100%',
-  },
+  image: { width: '100%', height: '100%' },
   frightenedBody: {
-    width: '85%',
-    height: '85%',
-    backgroundColor: '#2222CC',
+    backgroundColor: '#1111AA',
     justifyContent: 'center',
     alignItems: 'center',
-    alignSelf: 'center',
-    marginTop: '7.5%',
-    flexDirection: 'row',
-    gap: 4,
   },
-  frightenedEye: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: '#fff',
+  frightenedEyes: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  fEye: {
+    width: 5, height: 5,
+    borderRadius: 2.5,
+    backgroundColor: '#FFFFFF',
   },
 });
 
