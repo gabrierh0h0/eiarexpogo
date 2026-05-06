@@ -3,29 +3,16 @@ import { AppState, AppStateStatus } from 'react-native';
 import {
   createPacmanEngine, Direction, GameStats, Ghost,
   PacmanEngineState, PacmanState, setDirection,
-  snapshotPacmanStats, tickPacmanEngine,
+  snapshotStats, tickPacmanEngine,
 } from '../engine/pacmanEngine';
 
-export interface UsePacmanLoopResult {
-  stats: GameStats;
-  pacman: PacmanState;
-  ghosts: Ghost[];
-  dots: boolean[][];
-  cellSize: number;
-  boardWidth: number;
-  boardHeight: number;
-  changeDirection: (dir: Direction) => void;
-}
-
-export function usePacmanLoop(
-  screenWidth: number, screenHeight: number, paused: boolean,
-): UsePacmanLoopResult {
-  const engineRef = useRef<PacmanEngineState>(createPacmanEngine(screenWidth, screenHeight));
+export function usePacmanLoop(paused: boolean) {
+  const engineRef = useRef<PacmanEngineState>(createPacmanEngine());
   const lastRef = useRef<number | null>(null);
   const rafRef = useRef<number | null>(null);
   const pausedRef = useRef(paused);
 
-  const [stats, setStats] = useState<GameStats>(snapshotPacmanStats(engineRef.current));
+  const [stats, setStats] = useState<GameStats>(snapshotStats(engineRef.current));
   const [pacman, setPacman] = useState<PacmanState>({ ...engineRef.current.pacman, pos: { ...engineRef.current.pacman.pos } });
   const [ghosts, setGhosts] = useState<Ghost[]>(engineRef.current.ghosts.map(g => ({ ...g, pos: { ...g.pos } })));
   const [dots, setDots] = useState<boolean[][]>(engineRef.current.dots.map(r => [...r]));
@@ -43,35 +30,23 @@ export function usePacmanLoop(
 
   useEffect(() => {
     const loop = (now: number) => {
-      if (engineRef.current.stats.isOver) {
-        setStats(snapshotPacmanStats(engineRef.current));
-        return;
-      }
+      if (engineRef.current.stats.isOver) { setStats(snapshotStats(engineRef.current)); return; }
       if (pausedRef.current) { lastRef.current = null; rafRef.current = requestAnimationFrame(loop); return; }
       if (lastRef.current == null) { lastRef.current = now; rafRef.current = requestAnimationFrame(loop); return; }
-
-      const dt = Math.min(50, now - lastRef.current);
-      lastRef.current = now;
+      const dt = Math.min(50, now - lastRef.current); lastRef.current = now;
       tickPacmanEngine(engineRef.current, dt);
-
-      setStats(snapshotPacmanStats(engineRef.current));
+      setStats(snapshotStats(engineRef.current));
       setPacman({ ...engineRef.current.pacman, pos: { ...engineRef.current.pacman.pos } });
       setGhosts(engineRef.current.ghosts.map(g => ({ ...g, pos: { ...g.pos } })));
       setDots(engineRef.current.dots.map(r => [...r]));
-
       rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
     return () => { if (rafRef.current != null) cancelAnimationFrame(rafRef.current); };
   }, []);
 
-  const changeDirection = (dir: Direction) => { setDirection(engineRef.current, dir); };
-
   return {
     stats, pacman, ghosts, dots,
-    cellSize: engineRef.current.cellSize,
-    boardWidth: engineRef.current.boardWidth,
-    boardHeight: engineRef.current.boardHeight,
-    changeDirection,
+    changeDirection: (dir: Direction) => setDirection(engineRef.current, dir),
   };
 }

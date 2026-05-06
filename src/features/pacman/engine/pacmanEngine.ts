@@ -1,17 +1,13 @@
 /**
- * ENGINE del minijuego Pacman con movimiento float (suave).
+ * ENGINE Pacman — Reescrito para usar coordenadas de imagen.
+ * Todas las imágenes son 595×1235 y se apilan como capas.
+ * El mapa lógico se define manualmente para coincidir con la imagen.
  */
 import { PACMAN_CONFIG } from '../constants/config';
-import {
-  MAZE_MAP, MAZE_ROWS, MAZE_COLS, CellType,
-  countTotalDots, findPacmanSpawn, findGhostSpawns,
-} from '../constants/maze';
 import { GhostColor } from '../constants/sprites';
 
 export type Direction = 'up' | 'down' | 'left' | 'right' | 'none';
-
 export interface FPos { row: number; col: number; }
-
 export type GhostMode = 'scatter' | 'chase' | 'frightened' | 'eaten' | 'house';
 
 export interface Ghost {
@@ -50,367 +46,216 @@ export interface PacmanEngineState {
   dots: boolean[][];
   frightenedMs: number;
   elapsedMs: number;
-  cellSize: number;
-  boardWidth: number;
-  boardHeight: number;
 }
+
+// ---- MAPA LÓGICO ----
+// W=pared, D=dot, P=power, E=vacío, G=ghost house, O=puerta, S=spawn, T=túnel
+type C = 'W'|'D'|'P'|'E'|'G'|'O'|'S'|'T';
+
+// 21 cols × 27 rows — coincide con la imagen del laberinto
+const MAP: C[][] = [
+  // 0
+  ['W','W','W','W','W','W','W','W','W','W','W','W','W','W','W','W','W','W','W','W','W'],
+  // 1
+  ['W','D','D','D','D','D','D','D','D','D','W','D','D','D','D','D','D','D','D','D','W'],
+  // 2
+  ['W','D','W','W','W','D','W','W','W','D','W','D','W','W','W','D','W','W','W','D','W'],
+  // 3
+  ['W','P','W','W','W','D','W','W','W','D','W','D','W','W','W','D','W','W','W','P','W'],
+  // 4
+  ['W','D','D','D','D','D','D','D','D','D','D','D','D','D','D','D','D','D','D','D','W'],
+  // 5
+  ['W','D','W','W','W','D','W','D','W','W','W','W','W','D','W','D','W','W','W','D','W'],
+  // 6
+  ['W','D','D','D','D','D','W','D','D','D','W','D','D','D','W','D','D','D','D','D','W'],
+  // 7
+  ['W','W','W','W','W','D','W','W','W','E','W','E','W','W','W','D','W','W','W','W','W'],
+  // 8
+  ['E','E','E','E','W','D','W','E','E','E','E','E','E','E','W','D','W','E','E','E','E'],
+  // 9
+  ['W','W','W','W','W','D','W','E','W','W','O','W','W','E','W','D','W','W','W','W','W'],
+  // 10
+  ['T','E','E','E','E','D','E','E','W','G','G','G','W','E','E','D','E','E','E','E','T'],
+  // 11
+  ['W','W','W','W','W','D','W','E','W','W','W','W','W','E','W','D','W','W','W','W','W'],
+  // 12
+  ['E','E','E','E','W','D','W','E','E','E','E','E','E','E','W','D','W','E','E','E','E'],
+  // 13
+  ['W','W','W','W','W','D','W','E','W','W','W','W','W','E','W','D','W','W','W','W','W'],
+  // 14
+  ['W','D','D','D','D','D','D','D','D','D','W','D','D','D','D','D','D','D','D','D','W'],
+  // 15
+  ['W','D','W','W','W','D','W','W','W','D','W','D','W','W','W','D','W','W','W','D','W'],
+  // 16
+  ['W','P','D','D','W','D','D','D','D','D','E','D','D','D','D','D','W','D','D','P','W'],
+  // 17
+  ['W','W','W','D','W','D','W','D','W','W','W','W','W','D','W','D','W','D','W','W','W'],
+  // 18
+  ['W','D','D','D','D','D','W','D','D','D','W','D','D','D','W','D','D','D','D','D','W'],
+  // 19
+  ['W','D','W','W','W','W','W','W','W','D','W','D','W','W','W','W','W','W','W','D','W'],
+  // 20
+  ['W','D','D','D','D','D','D','D','D','D','D','D','D','D','D','D','D','D','D','D','W'],
+  // 21
+  ['W','W','W','W','W','W','W','W','W','W','W','W','W','W','W','W','W','W','W','W','W'],
+];
+
+export const ROWS = MAP.length;  // 22
+export const COLS = MAP[0].length; // 21
 
 const GHOST_COLORS: GhostColor[] = ['red', 'pink', 'blue', 'orange'];
 const EXIT_DELAYS = [0, 3000, 6000, 9000];
 
-const DIR_DELTA: Record<Direction, { dr: number; dc: number }> = {
-  up: { dr: -1, dc: 0 }, down: { dr: 1, dc: 0 },
-  left: { dr: 0, dc: -1 }, right: { dr: 0, dc: 1 },
-  none: { dr: 0, dc: 0 },
+const DIR_D: Record<Direction, {dr:number;dc:number}> = {
+  up:{dr:-1,dc:0}, down:{dr:1,dc:0}, left:{dr:0,dc:-1}, right:{dr:0,dc:1}, none:{dr:0,dc:0},
 };
+const OPP: Record<Direction,Direction> = { up:'down',down:'up',left:'right',right:'left',none:'none' };
 
-const OPPOSITE: Record<Direction, Direction> = {
-  up: 'down', down: 'up', left: 'right', right: 'left', none: 'none',
-};
-
-function isWall(r: number, c: number): boolean {
-  if (r < 0 || r >= MAZE_ROWS) return true;
-  if (c < 0 || c >= MAZE_COLS) {
-    // Túneles
-    if (r >= 0 && r < MAZE_ROWS && MAZE_MAP[r]?.[0] === 'T') return false;
-    return true;
-  }
-  return MAZE_MAP[r][c] === 'W';
+function canEnter(r:number,c:number): boolean {
+  if(c<0||c>=COLS){ if(r>=0&&r<ROWS&&MAP[r]){const c0=MAP[r][0];const cN=MAP[r][COLS-1];if(c0==='T'||cN==='T')return true;} return false; }
+  if(r<0||r>=ROWS) return false;
+  return MAP[r][c]!=='W';
 }
+function canDir(r:number,c:number,d:Direction):boolean{ const dd=DIR_D[d]; return canEnter(r+dd.dr,c+dd.dc); }
+function dist(a:FPos,b:FPos):number{ return Math.abs(a.row-b.row)+Math.abs(a.col-b.col); }
 
-function canEnter(r: number, c: number): boolean {
-  if (c < 0 || c >= MAZE_COLS) {
-    if (r >= 0 && r < MAZE_ROWS && (MAZE_MAP[r]?.[0] === 'T' || MAZE_MAP[r]?.[MAZE_COLS - 1] === 'T')) return true;
-    return false;
-  }
-  if (r < 0 || r >= MAZE_ROWS) return false;
-  return MAZE_MAP[r][c] !== 'W';
-}
+function countDots():number{ let n=0; for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) if(MAP[r][c]==='D'||MAP[r][c]==='P') n++; return n; }
+function findSpawn():{row:number;col:number}{ return {row:16,col:10}; } // celda S/E central fila 16
+function findGhostSpawns():{row:number;col:number}[]{ const s:{row:number;col:number}[]=[]; for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) if(MAP[r][c]==='G') s.push({row:r,col:c}); return s; }
 
-function canMoveDir(row: number, col: number, dir: Direction): boolean {
-  const d = DIR_DELTA[dir];
-  return canEnter(row + d.dr, col + d.dc);
-}
-
-function wrapCol(c: number): number {
-  if (c < 0) return MAZE_COLS - 1;
-  if (c >= MAZE_COLS) return 0;
-  return c;
-}
-
-function dist(a: FPos, b: FPos): number {
-  return Math.abs(a.row - b.row) + Math.abs(a.col - b.col);
-}
-
-// ---- CREACIÓN ----
-export function createPacmanEngine(screenW: number, _screenH: number): PacmanEngineState {
-  const cellSize = Math.floor(screenW / MAZE_COLS);
-  const spawn = findPacmanSpawn();
+// ---- CREAR ----
+export function createPacmanEngine(): PacmanEngineState {
+  const spawn = findSpawn();
   const gSpawns = findGhostSpawns();
-  const totalDots = countTotalDots();
+  const totalDots = countDots();
+  const dots:boolean[][]=[];
+  for(let r=0;r<ROWS;r++){dots[r]=[]; for(let c=0;c<COLS;c++) dots[r][c]=MAP[r][c]==='D'||MAP[r][c]==='P';}
 
-  const dots: boolean[][] = [];
-  for (let r = 0; r < MAZE_ROWS; r++) {
-    dots[r] = [];
-    for (let c = 0; c < MAZE_COLS; c++) {
-      dots[r][c] = MAZE_MAP[r][c] === 'D' || MAZE_MAP[r][c] === 'P';
-    }
-  }
-
-  const ghosts: Ghost[] = GHOST_COLORS.map((color, i) => {
-    const gs = gSpawns[i] || gSpawns[0] || { row: 9, col: 7 };
-    return {
-      id: color, pos: { row: gs.row, col: gs.col },
-      dir: 'none' as Direction, mode: 'house' as GhostMode,
-      respawnTimer: 0, exitTimer: EXIT_DELAYS[i],
-    };
+  const ghosts:Ghost[] = GHOST_COLORS.map((color,i)=>{
+    const gs=gSpawns[i]||gSpawns[0]||{row:10,col:10};
+    return {id:color,pos:{row:gs.row,col:gs.col},dir:'none' as Direction,mode:'house' as GhostMode,respawnTimer:0,exitTimer:EXIT_DELAYS[i]};
   });
 
   return {
-    stats: {
-      score: 0, lives: PACMAN_CONFIG.initialLives,
-      remainingMs: PACMAN_CONFIG.durationMs,
-      dotsLeft: totalDots, totalDots, isOver: false, endReason: null,
-      frightened: false,
-    },
-    pacman: {
-      pos: { row: spawn.row, col: spawn.col },
-      dir: 'left', nextDir: 'left', mouthOpen: true, mouthTimer: 0,
-      invulnerableMs: 0,
-    },
-    ghosts, dots, frightenedMs: 0, elapsedMs: 0,
-    cellSize, boardWidth: cellSize * MAZE_COLS, boardHeight: cellSize * MAZE_ROWS,
+    stats:{score:0,lives:PACMAN_CONFIG.initialLives,remainingMs:PACMAN_CONFIG.durationMs,dotsLeft:totalDots,totalDots,isOver:false,endReason:null,frightened:false},
+    pacman:{pos:{row:spawn.row,col:spawn.col},dir:'left',nextDir:'left',mouthOpen:true,mouthTimer:0,invulnerableMs:0},
+    ghosts,dots,frightenedMs:0,elapsedMs:0,
   };
 }
 
-export function setDirection(state: PacmanEngineState, dir: Direction): void {
-  state.pacman.nextDir = dir;
-}
+export function setDirection(state:PacmanEngineState,dir:Direction){state.pacman.nextDir=dir;}
 
 // ---- GHOST AI ----
-function getGhostTarget(g: Ghost, pac: FPos, pacDir: Direction): FPos {
-  switch (g.id) {
+function ghostTarget(g:Ghost,pac:FPos,pacDir:Direction):FPos{
+  switch(g.id){
     case 'red': return pac;
-    case 'pink': {
-      const d = DIR_DELTA[pacDir];
-      return { row: Math.max(0, Math.min(MAZE_ROWS - 1, pac.row + d.dr * 4)),
-               col: Math.max(0, Math.min(MAZE_COLS - 1, pac.col + d.dc * 4)) };
-    }
-    case 'blue': return { row: MAZE_ROWS - 2, col: MAZE_COLS - 2 };
-    case 'orange':
-      return dist(g.pos, pac) > 6 ? pac : { row: MAZE_ROWS - 2, col: 1 };
+    case 'pink':{const d=DIR_D[pacDir];return{row:Math.max(0,Math.min(ROWS-1,pac.row+d.dr*4)),col:Math.max(0,Math.min(COLS-1,pac.col+d.dc*4))};}
+    case 'blue': return {row:ROWS-2,col:COLS-2};
+    case 'orange': return dist(g.pos,pac)>6?pac:{row:ROWS-2,col:1};
     default: return pac;
   }
 }
-
-function getScatterTarget(g: Ghost): FPos {
-  switch (g.id) {
-    case 'red': return { row: 0, col: MAZE_COLS - 2 };
-    case 'pink': return { row: 0, col: 1 };
-    case 'blue': return { row: MAZE_ROWS - 1, col: MAZE_COLS - 2 };
-    case 'orange': return { row: MAZE_ROWS - 1, col: 1 };
-    default: return { row: 0, col: 0 };
-  }
+function scatterTarget(g:Ghost):FPos{
+  switch(g.id){case 'red':return{row:0,col:COLS-2};case 'pink':return{row:0,col:1};case 'blue':return{row:ROWS-1,col:COLS-2};case 'orange':return{row:ROWS-1,col:1};default:return{row:0,col:0};}
 }
-
-function chooseDir(pos: FPos, curDir: Direction, target: FPos): Direction {
-  const r = Math.round(pos.row);
-  const c = Math.round(pos.col);
-  const dirs: Direction[] = ['up', 'down', 'left', 'right'];
-  const opp = OPPOSITE[curDir];
-  const avail = dirs.filter(d => d !== opp && canMoveDir(r, c, d));
-  if (avail.length === 0) {
-    return canMoveDir(r, c, opp) ? opp : 'none';
-  }
-  if (avail.length === 1) return avail[0];
-  let best = avail[0]; let bestD = Infinity;
-  for (const d of avail) {
-    const dd = DIR_DELTA[d];
-    const nr = r + dd.dr; const nc = c + dd.dc;
-    const distance = Math.abs(nr - target.row) + Math.abs(nc - target.col);
-    if (distance < bestD) { bestD = distance; best = d; }
-  }
+function chooseDir(pos:FPos,cur:Direction,target:FPos):Direction{
+  const r=Math.round(pos.row);const c=Math.round(pos.col);
+  const dirs:Direction[]=['up','down','left','right'];
+  const opp=OPP[cur];
+  const avail=dirs.filter(d=>d!==opp&&canDir(r,c,d));
+  if(!avail.length)return canDir(r,c,opp)?opp:'none';
+  if(avail.length===1)return avail[0];
+  let best=avail[0];let bestD=Infinity;
+  for(const d of avail){const dd=DIR_D[d];const nr=r+dd.dr;const nc=c+dd.dc;const distance=Math.abs(nr-target.row)+Math.abs(nc-target.col);if(distance<bestD){bestD=distance;best=d;}}
   return best;
 }
-
-function randomDir(pos: FPos, curDir: Direction): Direction {
-  const r = Math.round(pos.row); const c = Math.round(pos.col);
-  const dirs: Direction[] = ['up', 'down', 'left', 'right'];
-  const opp = OPPOSITE[curDir];
-  const avail = dirs.filter(d => d !== opp && canMoveDir(r, c, d));
-  if (avail.length === 0) return canMoveDir(r, c, opp) ? opp : 'none';
-  return avail[Math.floor(Math.random() * avail.length)];
+function randDir(pos:FPos,cur:Direction):Direction{
+  const r=Math.round(pos.row);const c=Math.round(pos.col);
+  const dirs:Direction[]=['up','down','left','right'];
+  const avail=dirs.filter(d=>d!==OPP[cur]&&canDir(r,c,d));
+  if(!avail.length)return canDir(r,c,OPP[cur])?OPP[cur]:'none';
+  return avail[Math.floor(Math.random()*avail.length)];
 }
 
-const GHOST_EXIT: FPos = { row: 7, col: 7 };
+const GHOST_EXIT:FPos={row:8,col:10};
+const SNAP=PACMAN_CONFIG.snapThreshold;
 
-// ---- MOVIMIENTO FLOAT ----
-function moveEntity(pos: FPos, dir: Direction, speed: number, dtSec: number): FPos {
-  if (dir === 'none') return { ...pos };
-  const d = DIR_DELTA[dir];
-  let nr = pos.row + d.dr * speed * dtSec;
-  let nc = pos.col + d.dc * speed * dtSec;
-  // Wrap tunnels
-  if (nc < -0.5) nc = MAZE_COLS - 0.5;
-  else if (nc >= MAZE_COLS - 0.5 + 1) nc = -0.5;
-  return { row: nr, col: nc };
+function moveFloat(pos:FPos,dir:Direction,speed:number,dt:number):FPos{
+  if(dir==='none')return{...pos};
+  const d=DIR_D[dir];
+  let nr=pos.row+d.dr*speed*dt;let nc=pos.col+d.dc*speed*dt;
+  if(nc<-0.5)nc=COLS-0.5; else if(nc>=COLS)nc=-0.4;
+  return{row:nr,col:nc};
 }
-
-function isAtCellCenter(pos: FPos): boolean {
-  const dr = Math.abs(pos.row - Math.round(pos.row));
-  const dc = Math.abs(pos.col - Math.round(pos.col));
-  return dr < PACMAN_CONFIG.snapThreshold && dc < PACMAN_CONFIG.snapThreshold;
-}
-
-function snapToGrid(pos: FPos): FPos {
-  return { row: Math.round(pos.row), col: Math.round(pos.col) };
-}
+function atCenter(pos:FPos):boolean{return Math.abs(pos.row-Math.round(pos.row))<SNAP&&Math.abs(pos.col-Math.round(pos.col))<SNAP;}
+function snap(pos:FPos):FPos{return{row:Math.round(pos.row),col:Math.round(pos.col)};}
 
 // ---- TICK ----
-export function tickPacmanEngine(state: PacmanEngineState, dtMs: number): PacmanEngineState {
-  if (state.stats.isOver) return state;
-  const dtSec = dtMs / 1000;
+export function tickPacmanEngine(state:PacmanEngineState,dtMs:number):PacmanEngineState{
+  if(state.stats.isOver)return state;
+  const dt=dtMs/1000;
 
-  // Tiempo
-  state.elapsedMs += dtMs;
-  state.stats.remainingMs = Math.max(0, PACMAN_CONFIG.durationMs - state.elapsedMs);
-  if (state.stats.remainingMs <= 0) {
-    state.stats.isOver = true; state.stats.endReason = 'time'; return state;
-  }
+  state.elapsedMs+=dtMs;
+  state.stats.remainingMs=Math.max(0,PACMAN_CONFIG.durationMs-state.elapsedMs);
+  if(state.stats.remainingMs<=0){state.stats.isOver=true;state.stats.endReason='time';return state;}
 
-  // Power-up
-  if (state.frightenedMs > 0) {
-    state.frightenedMs = Math.max(0, state.frightenedMs - dtMs);
-    state.stats.frightened = state.frightenedMs > 0;
-    if (state.frightenedMs <= 0) {
-      for (const g of state.ghosts) {
-        if (g.mode === 'frightened') g.mode = 'chase';
-      }
-    }
-  }
+  if(state.frightenedMs>0){state.frightenedMs=Math.max(0,state.frightenedMs-dtMs);state.stats.frightened=state.frightenedMs>0;if(state.frightenedMs<=0)for(const g of state.ghosts)if(g.mode==='frightened')g.mode='chase';}
+  if(state.pacman.invulnerableMs>0)state.pacman.invulnerableMs=Math.max(0,state.pacman.invulnerableMs-dtMs);
 
-  // Invulnerabilidad
-  if (state.pacman.invulnerableMs > 0) {
-    state.pacman.invulnerableMs = Math.max(0, state.pacman.invulnerableMs - dtMs);
-  }
+  state.pacman.mouthTimer+=dtMs;
+  if(state.pacman.mouthTimer>=PACMAN_CONFIG.mouthAnimMs){state.pacman.mouthTimer=0;state.pacman.mouthOpen=!state.pacman.mouthOpen;}
 
-  // Boca
-  state.pacman.mouthTimer += dtMs;
-  if (state.pacman.mouthTimer >= PACMAN_CONFIG.mouthAnimMs) {
-    state.pacman.mouthTimer = 0;
-    state.pacman.mouthOpen = !state.pacman.mouthOpen;
-  }
-
-  // ---- MOVER PACMAN ----
-  const pac = state.pacman;
-  if (isAtCellCenter(pac.pos)) {
-    const snapped = snapToGrid(pac.pos);
-    pac.pos = snapped;
-    const r = snapped.row; const c = snapped.col;
-
-    // Intentar dirección deseada
-    if (pac.nextDir !== 'none' && canMoveDir(r, c, pac.nextDir)) {
-      pac.dir = pac.nextDir;
-    }
-    // Si no puede seguir en la dirección actual, parar
-    if (!canMoveDir(r, c, pac.dir)) {
-      pac.dir = 'none';
-    }
-
+  // Mover Pacman
+  const pac=state.pacman;
+  if(atCenter(pac.pos)){
+    pac.pos=snap(pac.pos);
+    const r=pac.pos.row;const c=pac.pos.col;
+    if(pac.nextDir!=='none'&&canDir(r,c,pac.nextDir))pac.dir=pac.nextDir;
+    if(!canDir(r,c,pac.dir))pac.dir='none';
     // Recoger dot
-    const wc = c < 0 ? MAZE_COLS - 1 : c >= MAZE_COLS ? 0 : c;
-    if (r >= 0 && r < MAZE_ROWS && wc >= 0 && wc < MAZE_COLS && state.dots[r][wc]) {
-      state.dots[r][wc] = false;
-      const cell = MAZE_MAP[r][wc];
-      if (cell === 'P') {
-        state.stats.score = Math.min(state.stats.score + PACMAN_CONFIG.pointsPerPowerDot, PACMAN_CONFIG.maxScore);
-        state.frightenedMs = PACMAN_CONFIG.frightenedDurationMs;
-        state.stats.frightened = true;
-        for (const g of state.ghosts) {
-          if (g.mode === 'chase' || g.mode === 'scatter') {
-            g.mode = 'frightened';
-            g.dir = OPPOSITE[g.dir];
-          }
-        }
+    const wc=c<0?COLS-1:c>=COLS?0:c;
+    if(r>=0&&r<ROWS&&wc>=0&&wc<COLS&&state.dots[r][wc]){
+      state.dots[r][wc]=false;
+      const cell=MAP[r][wc];
+      if(cell==='P'){
+        state.stats.score=Math.min(state.stats.score+PACMAN_CONFIG.pointsPerPowerDot,PACMAN_CONFIG.maxScore);
+        state.frightenedMs=PACMAN_CONFIG.frightenedDurationMs;state.stats.frightened=true;
+        for(const g of state.ghosts)if(g.mode==='chase'||g.mode==='scatter'){g.mode='frightened';g.dir=OPP[g.dir];}
       } else {
-        state.stats.score = Math.min(state.stats.score + PACMAN_CONFIG.pointsPerDot, PACMAN_CONFIG.maxScore);
+        state.stats.score=Math.min(state.stats.score+PACMAN_CONFIG.pointsPerDot,PACMAN_CONFIG.maxScore);
       }
       state.stats.dotsLeft--;
-      if (state.stats.dotsLeft <= 0) {
-        state.stats.isOver = true; state.stats.endReason = 'win'; return state;
-      }
+      if(state.stats.dotsLeft<=0){state.stats.isOver=true;state.stats.endReason='win';return state;}
     }
   }
-
-  // Mover pacman
-  if (pac.dir !== 'none') {
-    const newPos = moveEntity(pac.pos, pac.dir, PACMAN_CONFIG.pacmanSpeed, dtSec);
-    // Verificar que no se pase de un muro
-    const nextR = Math.round(newPos.row); const nextC = Math.round(newPos.col);
-    const curR = Math.round(pac.pos.row); const curC = Math.round(pac.pos.col);
-    if (nextR !== curR || nextC !== curC) {
-      // Cruzando a nueva celda - verificar
-      const wNextC = nextC < 0 ? MAZE_COLS - 1 : nextC >= MAZE_COLS ? 0 : nextC;
-      if (canEnter(nextR, wNextC)) {
-        pac.pos = newPos;
-      } else {
-        pac.pos = snapToGrid(pac.pos); // Quedarse en celda actual
-        pac.dir = 'none';
-      }
-    } else {
-      pac.pos = newPos;
-    }
+  if(pac.dir!=='none'){
+    const np=moveFloat(pac.pos,pac.dir,PACMAN_CONFIG.pacmanSpeed,dt);
+    const nr=Math.round(np.row);const nc=Math.round(np.col);
+    const cr=Math.round(pac.pos.row);const cc=Math.round(pac.pos.col);
+    if(nr!==cr||nc!==cc){const wc=nc<0?COLS-1:nc>=COLS?0:nc;if(canEnter(nr,wc))pac.pos=np;else{pac.pos=snap(pac.pos);pac.dir='none';}}
+    else pac.pos=np;
   }
 
-  // ---- MOVER FANTASMAS ----
-  for (const ghost of state.ghosts) {
-    if (ghost.mode === 'eaten') {
-      ghost.respawnTimer -= dtMs;
-      if (ghost.respawnTimer <= 0) {
-        const spawns = findGhostSpawns();
-        const idx = GHOST_COLORS.indexOf(ghost.id);
-        const sp = spawns[idx] || spawns[0] || { row: 9, col: 7 };
-        ghost.pos = { row: sp.row, col: sp.col };
-        ghost.mode = 'house'; ghost.exitTimer = 2000; ghost.dir = 'none';
-      }
-      continue;
-    }
+  // Mover fantasmas
+  for(const g of state.ghosts){
+    if(g.mode==='eaten'){g.respawnTimer-=dtMs;if(g.respawnTimer<=0){const sp=findGhostSpawns();const i=GHOST_COLORS.indexOf(g.id);const s=sp[i]||sp[0]||{row:10,col:10};g.pos={...s};g.mode='house';g.exitTimer=2000;g.dir='none';}continue;}
+    if(g.mode==='house'){g.exitTimer-=dtMs;if(g.exitTimer<=0){if(g.pos.row>GHOST_EXIT.row){g.pos.row-=PACMAN_CONFIG.ghostSpeed*dt;if(g.pos.row<=GHOST_EXIT.row)g.pos.row=GHOST_EXIT.row;}else if(Math.abs(g.pos.col-GHOST_EXIT.col)>0.3){g.pos.col+=(g.pos.col<GHOST_EXIT.col?1:-1)*PACMAN_CONFIG.ghostSpeed*dt;}else{g.pos={...GHOST_EXIT};g.mode='chase';g.dir='left';}}continue;}
 
-    if (ghost.mode === 'house') {
-      ghost.exitTimer -= dtMs;
-      if (ghost.exitTimer <= 0) {
-        // Mover hacia salida
-        if (ghost.pos.row > GHOST_EXIT.row) {
-          ghost.pos.row -= PACMAN_CONFIG.ghostSpeed * dtSec;
-          if (ghost.pos.row <= GHOST_EXIT.row) ghost.pos.row = GHOST_EXIT.row;
-        } else if (Math.abs(ghost.pos.col - GHOST_EXIT.col) > 0.3) {
-          ghost.pos.col += (ghost.pos.col < GHOST_EXIT.col ? 1 : -1) * PACMAN_CONFIG.ghostSpeed * dtSec;
-        } else {
-          ghost.pos = { ...GHOST_EXIT };
-          ghost.mode = 'chase'; ghost.dir = 'left';
-        }
-      }
-      continue;
-    }
-
-    // Movimiento normal
-    const isFright = ghost.mode === 'frightened';
-    const speed = isFright ? PACMAN_CONFIG.frightenedGhostSpeed : PACMAN_CONFIG.ghostSpeed;
-
-    if (isAtCellCenter(ghost.pos)) {
-      ghost.pos = snapToGrid(ghost.pos);
-      const gr = ghost.pos.row; const gc = ghost.pos.col;
-
-      if (isFright) {
-        ghost.dir = randomDir(ghost.pos, ghost.dir);
-      } else {
-        const cycleMs = state.elapsedMs % 27000;
-        const target = cycleMs < 7000
-          ? getScatterTarget(ghost)
-          : getGhostTarget(ghost, pac.pos, pac.dir);
-        ghost.dir = chooseDir(ghost.pos, ghost.dir, target);
-      }
-    }
-
-    if (ghost.dir !== 'none') {
-      const newPos = moveEntity(ghost.pos, ghost.dir, speed, dtSec);
-      const nextR = Math.round(newPos.row); const nextC = Math.round(newPos.col);
-      const curR = Math.round(ghost.pos.row); const curC = Math.round(ghost.pos.col);
-      if (nextR !== curR || nextC !== curC) {
-        const wNextC = nextC < 0 ? MAZE_COLS - 1 : nextC >= MAZE_COLS ? 0 : nextC;
-        if (canEnter(nextR, wNextC)) {
-          ghost.pos = newPos;
-        } else {
-          ghost.pos = snapToGrid(ghost.pos);
-        }
-      } else {
-        ghost.pos = newPos;
-      }
-    }
+    const isFr=g.mode==='frightened';const spd=isFr?PACMAN_CONFIG.frightenedGhostSpeed:PACMAN_CONFIG.ghostSpeed;
+    if(atCenter(g.pos)){g.pos=snap(g.pos);if(isFr)g.dir=randDir(g.pos,g.dir);else{const cy=state.elapsedMs%27000;const t=cy<7000?scatterTarget(g):ghostTarget(g,pac.pos,pac.dir);g.dir=chooseDir(g.pos,g.dir,t);}}
+    if(g.dir!=='none'){const np=moveFloat(g.pos,g.dir,spd,dt);const nr=Math.round(np.row);const nc=Math.round(np.col);const cr=Math.round(g.pos.row);const cc=Math.round(g.pos.col);if(nr!==cr||nc!==cc){const wc=nc<0?COLS-1:nc>=COLS?0:nc;if(canEnter(nr,wc))g.pos=np;else g.pos=snap(g.pos);}else g.pos=np;}
   }
 
-  // ---- COLISIONES ----
-  for (const ghost of state.ghosts) {
-    if (ghost.mode === 'eaten' || ghost.mode === 'house') continue;
-    const d = dist(ghost.pos, pac.pos);
-    if (d < 0.7) {
-      if (ghost.mode === 'frightened') {
-        state.stats.score = Math.min(state.stats.score + PACMAN_CONFIG.pointsPerGhost, PACMAN_CONFIG.maxScore);
-        ghost.mode = 'eaten'; ghost.respawnTimer = PACMAN_CONFIG.ghostRespawnMs;
-      } else if (pac.invulnerableMs <= 0) {
-        state.stats.lives--;
-        if (state.stats.lives <= 0) {
-          state.stats.lives = 0; state.stats.isOver = true; state.stats.endReason = 'lives'; return state;
-        }
-        const spawn = findPacmanSpawn();
-        pac.pos = { row: spawn.row, col: spawn.col };
-        pac.dir = 'left'; pac.nextDir = 'left';
-        pac.invulnerableMs = PACMAN_CONFIG.respawnInvulnerableMs;
-      }
+  // Colisiones
+  for(const g of state.ghosts){
+    if(g.mode==='eaten'||g.mode==='house')continue;
+    if(dist(g.pos,pac.pos)<0.7){
+      if(g.mode==='frightened'){state.stats.score=Math.min(state.stats.score+PACMAN_CONFIG.pointsPerGhost,PACMAN_CONFIG.maxScore);g.mode='eaten';g.respawnTimer=PACMAN_CONFIG.ghostRespawnMs;}
+      else if(pac.invulnerableMs<=0){state.stats.lives--;if(state.stats.lives<=0){state.stats.lives=0;state.stats.isOver=true;state.stats.endReason='lives';return state;}const sp=findSpawn();pac.pos={...sp};pac.dir='left';pac.nextDir='left';pac.invulnerableMs=PACMAN_CONFIG.respawnInvulnerableMs;}
     }
   }
-
   return state;
 }
 
-export function snapshotPacmanStats(s: PacmanEngineState): GameStats { return { ...s.stats }; }
+export function snapshotStats(s:PacmanEngineState):GameStats{return{...s.stats};}
+export function getMap():C[][]{return MAP;}
