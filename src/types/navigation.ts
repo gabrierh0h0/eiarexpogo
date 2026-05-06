@@ -14,4 +14,8 @@ export type RootStackParamList = {
   FoodDropGame: undefined;
   FoodDropResult: { score: number; endReason: 'time' | 'lives' };
   FoodDropAlreadyPlayed: undefined;
+  // ---- Minijuego Pacman (Recorrido Campus) ----
+  PacmanGame: undefined;
+  PacmanResult: { score: number; endReason: 'time' | 'lives' | 'win' };
+  PacmanAlreadyPlayed: undefined;
 };

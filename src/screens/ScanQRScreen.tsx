@@ -16,6 +16,8 @@ import { validateQRData } from "../services/QrService";
 import { completeMission, isMissionCompleted } from "../services/progressService";
 import { isFoodDropQr } from "../features/foodDrop/utils/qrIdentifier";
 import { FOOD_DROP_MISSION_ID } from "../features/foodDrop/constants/config";
+import { isPacmanQr } from "../features/pacman/utils/qrIdentifier";
+import { PACMAN_MISSION_ID } from "../features/pacman/constants/config";
 
 const STATUSBAR_PAD = (StatusBar.currentHeight ?? 0) + 12;
 
@@ -55,6 +57,17 @@ export default function ScanQRScreen({ navigation }: any) {
             navigation.replace("FoodDropAlreadyPlayed");
           } else {
             navigation.replace("FoodDropGame");
+          }
+          return;
+        }
+
+        // ---- INTERCEPCIÓN: QR del minijuego Pacman (Recorrido Campus) ----
+        if (isPacmanQr(result.data)) {
+          const alreadyDone = await isMissionCompleted(PACMAN_MISSION_ID);
+          if (alreadyDone) {
+            navigation.replace("PacmanAlreadyPlayed");
+          } else {
+            navigation.replace("PacmanGame");
           }
           return;
         }

@@ -20,6 +20,11 @@ import FoodDropGameScreen from "../features/foodDrop/screens/FoodDropGameScreen"
 import FoodDropResultScreen from "../features/foodDrop/screens/FoodDropResultScreen";
 import FoodDropAlreadyPlayedScreen from "../features/foodDrop/screens/FoodDropAlreadyPlayedScreen";
 
+// ---- Minijuego Pacman ----
+import PacmanGameScreen from "../features/pacman/screens/PacmanGameScreen";
+import PacmanResultScreen from "../features/pacman/screens/PacmanResultScreen";
+import PacmanAlreadyPlayedScreen from "../features/pacman/screens/PacmanAlreadyPlayedScreen";
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const AppNavigator = () => {
@@ -102,6 +107,23 @@ const AppNavigator = () => {
       <Stack.Screen
         name="FoodDropAlreadyPlayed"
         component={FoodDropAlreadyPlayedScreen}
+        options={{ headerShown: false }}
+      />
+
+      {/* ---- Minijuego Pacman (Recorrido Campus) ---- */}
+      <Stack.Screen
+        name="PacmanGame"
+        component={PacmanGameScreen}
+        options={{ headerShown: false, gestureEnabled: false }}
+      />
+      <Stack.Screen
+        name="PacmanResult"
+        component={PacmanResultScreen}
+        options={{ headerShown: false, gestureEnabled: false }}
+      />
+      <Stack.Screen
+        name="PacmanAlreadyPlayed"
+        component={PacmanAlreadyPlayedScreen}
         options={{ headerShown: false }}
       />
     </Stack.Navigator>
