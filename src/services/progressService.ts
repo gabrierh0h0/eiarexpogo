@@ -29,3 +29,20 @@ export async function getMyProgress(): Promise<MyProgressResponse> {
     return res.data;
 }
 
+/**
+ * Devuelve true si el usuario ya completó la misión indicada.
+ * Usa el endpoint existente `/progress/me` y revisa la lista
+ * `completedMissions`. Si falla la red, devuelve false (mejor permitir
+ * jugar y que el backend rechace en caliente que bloquear por error de red).
+ */
+export async function isMissionCompleted(missionId: string): Promise<boolean> {
+    try {
+        const progress = await getMyProgress();
+        return Array.isArray(progress.completedMissions)
+            && progress.completedMissions.includes(missionId);
+    } catch (e) {
+        console.warn("No se pudo consultar progreso, asumiendo no completada:", e);
+        return false;
+    }
+}
+

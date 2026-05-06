@@ -13,7 +13,9 @@ import {
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { Ionicons } from "@expo/vector-icons";
 import { validateQRData } from "../services/QrService";
-import { completeMission } from "../services/progressService";
+import { completeMission, isMissionCompleted } from "../services/progressService";
+import { isFoodDropQr } from "../features/foodDrop/utils/qrIdentifier";
+import { FOOD_DROP_MISSION_ID } from "../features/foodDrop/constants/config";
 
 const STATUSBAR_PAD = (StatusBar.currentHeight ?? 0) + 12;
 
@@ -43,7 +45,21 @@ export default function ScanQRScreen({ navigation }: any) {
     try {
       const result = await validateQRData(data);
       if (result.success && result.data) {
-        // Complete mission on backend
+        // ---- INTERCEPCIÓN: QR del minijuego Food Drop (Tienda de la Confianza) ----
+        // Si el contenido escaneado es el QR especial del Food Drop, NO completamos
+        // la misión aún. La misión se completa cuando termine la partida y se llame
+        // al endpoint `complete-mission-with-score` con el score real del juego.
+        if (isFoodDropQr(result.data)) {
+          const alreadyDone = await isMissionCompleted(FOOD_DROP_MISSION_ID);
+          if (alreadyDone) {
+            navigation.replace("FoodDropAlreadyPlayed");
+          } else {
+            navigation.replace("FoodDropGame");
+          }
+          return;
+        }
+
+        // Flujo normal para los demás QR de misión
         await completeMission(result.data);
         setScanStatus("success");
       } else {

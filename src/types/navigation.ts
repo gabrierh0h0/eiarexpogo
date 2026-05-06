@@ -10,4 +10,8 @@ export type RootStackParamList = {
   Progreso: undefined;
   Configuracion: undefined;
   EditarPerfil: undefined;
+  // ---- Minijuego Food Drop (Tienda de la Confianza) ----
+  FoodDropGame: undefined;
+  FoodDropResult: { score: number; endReason: 'time' | 'lives' };
+  FoodDropAlreadyPlayed: undefined;
 };

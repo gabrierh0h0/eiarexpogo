@@ -15,6 +15,11 @@ import RankingScreen from "../screens/RankingScreen";
 import MapScreen from "../screens/MapScreen";
 import ProgressScreen from "../screens/ProgressScreen";
 
+// ---- Minijuego Food Drop ----
+import FoodDropGameScreen from "../features/foodDrop/screens/FoodDropGameScreen";
+import FoodDropResultScreen from "../features/foodDrop/screens/FoodDropResultScreen";
+import FoodDropAlreadyPlayedScreen from "../features/foodDrop/screens/FoodDropAlreadyPlayedScreen";
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const AppNavigator = () => {
@@ -80,6 +85,23 @@ const AppNavigator = () => {
       <Stack.Screen
         name="EditarPerfil"
         component={EditProfileScreen}
+        options={{ headerShown: false }}
+      />
+
+      {/* ---- Minijuego Food Drop (Tienda de la Confianza) ---- */}
+      <Stack.Screen
+        name="FoodDropGame"
+        component={FoodDropGameScreen}
+        options={{ headerShown: false, gestureEnabled: false }}
+      />
+      <Stack.Screen
+        name="FoodDropResult"
+        component={FoodDropResultScreen}
+        options={{ headerShown: false, gestureEnabled: false }}
+      />
+      <Stack.Screen
+        name="FoodDropAlreadyPlayed"
+        component={FoodDropAlreadyPlayedScreen}
         options={{ headerShown: false }}
       />
     </Stack.Navigator>
