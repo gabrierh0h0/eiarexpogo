@@ -66,7 +66,12 @@ export default function Inicio() {
             <Ionicons name="menu-outline" size={26} color="#e8f5f7" />
           </TouchableOpacity>
 
-          <Image source={LOGO} style={styles.logoImg} resizeMode="contain" />
+          <TouchableOpacity 
+            onLongPress={() => navigation.navigate("PacmanGame")}
+            delayLongPress={2000}
+          >
+            <Image source={LOGO} style={styles.logoImg} resizeMode="contain" />
+          </TouchableOpacity>
 
           <View style={styles.rightIcons}>
             <TouchableOpacity onPress={handleLogout}>

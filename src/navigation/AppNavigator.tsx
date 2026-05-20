@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import { LoginScreen } from "../screens/LoginScreen";
 import RegisterScreen from "../screens/RegisterScreen";
+import { ForgotPasswordScreen } from "../screens/ForgotPasswordScreen";
 import { RootStackParamList } from "../types/navigation";
 import SettingsScreen from "../screens/SettingsScreen";
 import EditProfileScreen from "../screens/EditProfileScreen";
@@ -40,6 +41,11 @@ const AppNavigator = () => {
       <Stack.Screen
         name="Login"
         component={LoginScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="ForgotPassword"
+        component={ForgotPasswordScreen}
         options={{ headerShown: false }}
       />
       <Stack.Screen

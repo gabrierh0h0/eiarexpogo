@@ -132,7 +132,7 @@ export const LoginScreen: React.FC = () => {
         {errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
 
         {/* Olvidé contraseña */}
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate("ForgotPassword")}>
           <Text style={styles.forgotPassword}>¿OLVIDASTE LA CONTRASEÑA?</Text>
         </TouchableOpacity>
 
@@ -214,7 +214,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   forgotPassword: {
-
+    color: "#bbd1dc",
+    alignSelf: "flex-end",
+    marginBottom: 15,
+    marginTop: 5,
+    fontWeight: "600",
   },
   loginButton: {
     backgroundColor: "#219ebc",

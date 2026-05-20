@@ -1,38 +1,114 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import {
   Dimensions, Image, PanResponder, StatusBar,
-  StyleSheet, Text, View,
+  StyleSheet, Text, View, Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../../types/navigation';
 import { usePacmanLoop } from '../hooks/usePacmanLoop';
-import { Direction, ROWS, COLS, getMap } from '../engine/pacmanEngine';
-import { PACMAN_SPRITES, GHOST_SPRITES, PACMAN_UI, GhostColor } from '../constants/sprites';
-import { PACMAN_CONFIG } from '../constants/config';
+import {
+  Direction, ROWS, COLS, getMap,
+  LAYER_W, LAYER_H,
+  CELL_PX, SPRITE_BOUNDS,
+  cellToPixel,
+} from '../engine/pacmanEngine';
+import { PACMAN_SPRITES, GHOST_SPRITES, PACMAN_UI } from '../constants/sprites';
 
 type Nav = NativeStackNavigationProp<RootStackParamList, 'PacmanGame'>;
-
-// Imagen nativa: 595 × 1235
-const IMG_W = 595;
-const IMG_H = 1235;
-const IMG_RATIO = IMG_H / IMG_W; // ≈ 2.076
-
-// El laberinto en la imagen ocupa una zona interna.
-// Estos offsets mapean la cuadrícula lógica (21 cols × 22 rows) a píxeles de la imagen.
-// Medidos del pixel art original de 595×1235:
-const SRC_GRID_LEFT = 18;
-const SRC_GRID_TOP = 70;
-const SRC_GRID_RIGHT = 577;
-const SRC_GRID_BOTTOM = 1165;
-const SRC_CELL_W = (SRC_GRID_RIGHT - SRC_GRID_LEFT) / COLS;  // ~26.6
-const SRC_CELL_H = (SRC_GRID_BOTTOM - SRC_GRID_TOP) / ROWS;  // ~49.8
 
 const STATUSBAR_H = StatusBar.currentHeight ?? 44;
 
 function formatTime(ms: number): string {
-  const s = Math.ceil(ms / 1000); const m = Math.floor(s / 60);
+  const s = Math.ceil(ms / 1000);
+  const m = Math.floor(s / 60);
   return `${m}:${(s % 60).toString().padStart(2, '0')}`;
+}
+
+/**
+ * Rotación del sprite de Pascal según dirección.
+ * El sprite original (pascal.png) mira hacia la izquierda.
+ */
+function pacmanRotation(dir: Direction): string {
+  switch (dir) {
+    case 'right': return '180deg';
+    case 'up':    return '90deg';
+    case 'down':  return '-90deg';
+    case 'left':
+    default:      return '0deg';
+  }
+}
+
+/**
+ * Renderiza un sprite recortado de su capa 595×1235.
+ * En vez de mover la capa entera, se posiciona un contenedor pequeño
+ * (del tamaño del sprite) exactamente en la celda del grid, y dentro
+ * se coloca la imagen con offset negativo para mostrar solo el sprite.
+ * Esto permite rotar el contenedor sin problemas de pivot.
+ */
+function CroppedSprite({
+  source,
+  spriteKey,
+  pos,
+  scale,
+  boardW,
+  boardH,
+  rotation,
+  opacity,
+  tintColor,
+  zIndex,
+}: {
+  source: any;
+  spriteKey: string;
+  pos: { row: number; col: number };
+  scale: number;
+  boardW: number;
+  boardH: number;
+  rotation?: string;
+  opacity?: number;
+  tintColor?: string;
+  zIndex?: number;
+}) {
+  const bounds = SPRITE_BOUNDS[spriteKey];
+  if (!bounds) return null;
+
+  // Position of the grid cell center in screen coordinates
+  const { px, py } = cellToPixel(pos.row, pos.col);
+  const screenX = px * scale;
+  const screenY = py * scale;
+
+  // Sprite display size
+  const sw = bounds.w * scale;
+  const sh = bounds.h * scale;
+
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        left: screenX - sw / 2,
+        top: screenY - sh / 2,
+        width: sw,
+        height: sh,
+        overflow: 'hidden',
+        zIndex: zIndex ?? 15,
+        transform: rotation ? [{ rotate: rotation }] : [],
+      }}
+    >
+      <Image
+        source={source}
+        style={{
+          position: 'absolute',
+          width: boardW,
+          height: boardH,
+          left: -bounds.x * scale,
+          top: -bounds.y * scale,
+          opacity: opacity ?? 1,
+          ...(tintColor ? { tintColor } : {}),
+        }}
+        resizeMode="stretch"
+      />
+    </View>
+  );
 }
 
 export default function PacmanGameScreen() {
@@ -40,170 +116,228 @@ export default function PacmanGameScreen() {
   const { stats, pacman, ghosts, dots, changeDirection } = usePacmanLoop(false);
   const navigatedRef = useRef(false);
 
-  // Dimensiones de pantalla
-  const screenW = Dimensions.get('window').width;
-  const boardW = screenW;
-  const boardH = boardW * IMG_RATIO;
-  const scale = boardW / IMG_W;
+  /* ─── Dimensions ─── */
+  const screen = Dimensions.get('window');
+  const boardW = screen.width;
+  const boardH = boardW * (LAYER_H / LAYER_W);
+  const scale = boardW / LAYER_W;
 
-  // Mapeo grid → pantalla
-  const gridLeft = SRC_GRID_LEFT * scale;
-  const gridTop = SRC_GRID_TOP * scale;
-  const cellW = SRC_CELL_W * scale;
-  const cellH = SRC_CELL_H * scale;
+  /* ─── Keyboard (web) ─── */
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const map: Record<string, Direction> = {
+        ArrowUp: 'up', ArrowDown: 'down',
+        ArrowLeft: 'left', ArrowRight: 'right',
+      };
+      const dir = map[e.key];
+      if (dir) changeDirection(dir);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [changeDirection]);
 
+  /* ─── Game Over ─── */
   useEffect(() => {
     if (stats.isOver && !navigatedRef.current) {
       navigatedRef.current = true;
-      navigation.replace('PacmanResult', { score: stats.score, endReason: stats.endReason ?? 'time' });
+      navigation.replace('PacmanResult', {
+        score: stats.score,
+        endReason: stats.endReason ?? 'time',
+      });
     }
   }, [stats.isOver]);
 
-  // Swipe
+  /* ─── Swipe ─── */
   const startRef = useRef<{ x: number; y: number } | null>(null);
-  const panResponder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onMoveShouldSetPanResponder: (_, gs) => Math.abs(gs.dx) > 6 || Math.abs(gs.dy) > 6,
-    onPanResponderGrant: e => { startRef.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY }; },
-    onPanResponderMove: e => {
-      if (!startRef.current) return;
-      const dx = e.nativeEvent.pageX - startRef.current.x;
-      const dy = e.nativeEvent.pageY - startRef.current.y;
-      if (Math.abs(dx) < 12 && Math.abs(dy) < 12) return;
-      const dir: Direction = Math.abs(dx) > Math.abs(dy)
-        ? (dx > 0 ? 'right' : 'left')
-        : (dy > 0 ? 'down' : 'up');
-      changeDirection(dir);
-      startRef.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
-    },
-  }), [changeDirection]);
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: (_, gs) =>
+          Math.abs(gs.dx) > 4 || Math.abs(gs.dy) > 4,
+        onPanResponderGrant: (e) => {
+          startRef.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
+        },
+        onPanResponderMove: (e) => {
+          if (!startRef.current) return;
+          const dx = e.nativeEvent.pageX - startRef.current.x;
+          const dy = e.nativeEvent.pageY - startRef.current.y;
+          if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+          const dir: Direction =
+            Math.abs(dx) > Math.abs(dy)
+              ? dx > 0 ? 'right' : 'left'
+              : dy > 0 ? 'down' : 'up';
+          changeDirection(dir);
+          startRef.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
+        },
+      }),
+    [changeDirection],
+  );
 
-  // Posición de una entidad en pantalla
-  const posX = (col: number) => gridLeft + col * cellW;
-  const posY = (row: number) => gridTop + row * cellH;
-
-  // Render dots que AÚN NO se han comido
+  /* ─── Dots ─── */
   const MAP = getMap();
   const dotElements: React.ReactNode[] = [];
   for (let r = 0; r < ROWS; r++) {
     for (let c = 0; c < COLS; c++) {
       if (!dots[r]?.[c]) continue;
-      const cell = MAP[r][c];
-      const isPower = cell === 'P';
-      const size = isPower ? cellW * 0.55 : cellW * 0.22;
+      const isP = MAP[r][c] === 'P';
+      const size = (isP ? 10 : 4) * scale;
+      const { px, py } = cellToPixel(r, c);
       dotElements.push(
-        <View key={`d${r}-${c}`} style={{
-          position: 'absolute',
-          left: posX(c) + (cellW - size) / 2,
-          top: posY(r) + (cellH - size) / 2,
-          width: size, height: size, borderRadius: size / 2,
-          backgroundColor: isPower ? '#FFD166' : '#FFFFFF',
-          zIndex: 2,
-        }} />,
+        <View
+          key={`d${r}-${c}`}
+          style={{
+            position: 'absolute',
+            left: px * scale - size / 2,
+            top: py * scale - size / 2,
+            width: size,
+            height: size,
+            borderRadius: size / 2,
+            backgroundColor: isP ? '#FFD166' : '#FFFFFF',
+            zIndex: 5,
+          }}
+        />,
       );
     }
   }
 
-  // Rotación de Pascal
-  const rotation = pacman.dir === 'right' ? '0deg' : pacman.dir === 'down' ? '90deg'
-    : pacman.dir === 'left' ? '180deg' : pacman.dir === 'up' ? '270deg' : '0deg';
-
-  const pacSize = cellW * 1.6;
-  const ghostSize = cellW * 1.5;
-  const lifeSize = 22;
+  /* ─── Invulnerability flash ─── */
+  const pacOpacity =
+    pacman.invulnerableMs > 0
+      ? Math.floor(Date.now() / 150) % 2 === 0 ? 0.35 : 1
+      : 1;
 
   return (
     <View style={styles.root} {...panResponder.panHandlers}>
       {/* HUD */}
-      <View style={[styles.hud, { paddingTop: STATUSBAR_H + 4 }]}>
-        <Text style={styles.brand}>EIAR</Text>
-        <View style={styles.hudRight}>
+      <View style={[styles.hud, { paddingTop: STATUSBAR_H + 10 }]}>
+        <View>
+          <Text style={styles.brand}>CAMPUS TOUR</Text>
           <Text style={styles.scoreText}>{stats.score}</Text>
-          {Array.from({ length: PACMAN_CONFIG.initialLives }, (_, i) => (
-            <Image key={i} source={PACMAN_UI.life} style={[styles.life, i >= stats.lives && { opacity: 0.2 }]} resizeMode="contain" />
-          ))}
+        </View>
+        <View style={styles.hudRight}>
+          <View style={styles.livesRow}>
+            {Array.from({ length: stats.lives }).map((_, i) => (
+              <Image key={i} source={PACMAN_UI.life} style={styles.lifeIcon} />
+            ))}
+          </View>
+          <Text style={styles.timerText}>{formatTime(stats.remainingMs)}</Text>
         </View>
       </View>
-      <View style={styles.hudRow2}>
-        <Text style={styles.hudDots}>🟡 {stats.totalDots - stats.dotsLeft}/{stats.totalDots}</Text>
-        <Text style={styles.hudTimer}>{formatTime(stats.remainingMs)}</Text>
-      </View>
 
-      {/* TABLERO DE JUEGO */}
-      <View style={[styles.board, { width: boardW, height: boardH }]}>
-        {/* Capa 1: fondo oscuro del laberinto */}
-        <Image source={PACMAN_UI.background} style={styles.layerImg} resizeMode="stretch" />
-        {/* Capa 2: contornos del laberinto */}
-        <Image source={PACMAN_UI.maze} style={styles.layerImg} resizeMode="stretch" />
-        {/* Capa 3: puerta ghost house */}
-        <Image source={PACMAN_UI.door} style={styles.layerImg} resizeMode="stretch" />
+      {/* Board */}
+      <View style={[styles.boardContainer, { width: boardW, height: boardH }]}>
+        {/* Static background layers */}
+        <Image source={PACMAN_UI.background} style={styles.fullLayer} resizeMode="stretch" />
+        <Image source={PACMAN_UI.maze}       style={styles.fullLayer} resizeMode="stretch" />
+        <Image source={PACMAN_UI.door}       style={styles.fullLayer} resizeMode="stretch" />
 
         {/* Dots */}
         {dotElements}
 
-        {/* Fantasmas */}
-        {ghosts.map(g => {
-          if (g.mode === 'eaten' || g.mode === 'house') return null;
+        {/* Pascal — cropped sprite with rotation */}
+        <CroppedSprite
+          source={PACMAN_SPRITES.pascal}
+          spriteKey="pascal"
+          pos={pacman.pos}
+          scale={scale}
+          boardW={boardW}
+          boardH={boardH}
+          rotation={pacmanRotation(pacman.dir)}
+          opacity={pacOpacity}
+          zIndex={20}
+        />
+
+        {/* Ghosts — cropped sprites, no rotation */}
+        {ghosts.map((g) => {
+          if (g.mode === 'house' || g.mode === 'eaten') return null;
           const isFright = g.mode === 'frightened';
           return (
-            <Image
+            <CroppedSprite
               key={g.id}
-              source={isFright ? PACMAN_UI.dot : GHOST_SPRITES[g.id]}
-              style={{
-                position: 'absolute',
-                left: posX(g.pos.col) + (cellW - ghostSize) / 2,
-                top: posY(g.pos.row) + (cellH - ghostSize) / 2,
-                width: ghostSize, height: ghostSize,
-                zIndex: 5,
-                tintColor: isFright ? '#2222CC' : undefined,
-              }}
-              resizeMode="contain"
+              source={GHOST_SPRITES[g.id]}
+              spriteKey={g.id}
+              pos={g.pos}
+              scale={scale}
+              boardW={boardW}
+              boardH={boardH}
+              opacity={isFright ? 0.55 : 1}
+              tintColor={isFright ? '#2222CC' : undefined}
+              zIndex={15}
             />
           );
         })}
-
-        {/* Pascal (Pacman) */}
-        <Image
-          source={PACMAN_SPRITES.pascal}
-          style={{
-            position: 'absolute',
-            left: posX(pacman.pos.col) + (cellW - pacSize) / 2,
-            top: posY(pacman.pos.row) + (cellH - pacSize) / 2,
-            width: pacSize, height: pacSize,
-            zIndex: 10,
-            transform: [{ rotate: rotation }],
-            opacity: pacman.invulnerableMs > 0 ? (pacman.mouthOpen ? 1 : 0.3) : 1,
-          }}
-          resizeMode="contain"
-        />
       </View>
 
-      {/* Hint */}
-      <View style={styles.hintBar}>
-        <Text style={styles.hintText}>↔ Desliza para mover a Pascal ↕</Text>
+      {/* Footer */}
+      <View style={styles.footer}>
+        <Text style={styles.hintText}>DESLIZA PARA MOVER A PASCAL</Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#000' },
+  root: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
   hud: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 14, paddingBottom: 6, backgroundColor: '#0A1A2A',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 15,
+    backgroundColor: '#001A26',
   },
-  brand: { color: '#14D4F4', fontSize: 20, fontWeight: 'bold' },
-  hudRight: { flexDirection: 'row', alignItems: 'center' },
-  scoreText: { color: '#fff', fontSize: 20, fontWeight: 'bold', marginRight: 10 },
-  life: { width: 22, height: 22, marginLeft: 3 },
-  hudRow2: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    paddingHorizontal: 14, paddingBottom: 4, backgroundColor: '#0A1A2A',
+  brand: {
+    color: '#14D4F4',
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 1,
   },
-  hudDots: { color: '#7EC8D8', fontSize: 12 },
-  hudTimer: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  board: { alignSelf: 'center' },
-  layerImg: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
-  hintBar: { alignItems: 'center', paddingVertical: 6, backgroundColor: '#0A1A2A' },
-  hintText: { color: '#4A7A8A', fontSize: 11 },
+  scoreText: {
+    color: '#fff',
+    fontSize: 26,
+    fontWeight: 'bold',
+  },
+  hudRight: {
+    alignItems: 'flex-end',
+  },
+  livesRow: {
+    flexDirection: 'row',
+    marginBottom: 5,
+  },
+  lifeIcon: {
+    width: 18,
+    height: 18,
+    marginLeft: 5,
+  },
+  timerText: {
+    color: '#FFD166',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  boardContainer: {
+    alignSelf: 'center',
+    backgroundColor: '#000',
+    overflow: 'hidden',
+  },
+  fullLayer: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+  },
+  footer: {
+    paddingVertical: 20,
+    alignItems: 'center',
+    backgroundColor: '#001A26',
+  },
+  hintText: {
+    color: '#5A8A9A',
+    fontSize: 11,
+    fontWeight: 'bold',
+    letterSpacing: 2,
+  },
 });
