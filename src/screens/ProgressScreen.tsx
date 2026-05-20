@@ -13,6 +13,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Circle } from "react-native-svg";
 import MenuOverlay from "./MenuOverlay";
+import LogoutModal from "../components/LogoutModal";
+import { useLogoutFlow } from "../components/useLogoutFlow";
 import { getMyProgress } from "../services/progressService";
 import api from "../config/api";
 import { logro } from "../types/logros";
@@ -48,6 +50,7 @@ const truncateDescription = (text: string, max = 30) => {
 
 export default function ProgressScreen() {
   const [menuVisible, setMenuVisible] = useState(false);
+  const logoutFlow = useLogoutFlow();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<ProgressResponse | null>(null);
@@ -230,7 +233,12 @@ export default function ProgressScreen() {
         )}
       </ScrollView>
 
-      <MenuOverlay visible={menuVisible} onClose={() => setMenuVisible(false)} />
+      <MenuOverlay
+        visible={menuVisible}
+        onClose={() => setMenuVisible(false)}
+        onRequestLogout={logoutFlow.open}
+      />
+      <LogoutModal {...logoutFlow.modalProps} />
     </View>
   );
 }

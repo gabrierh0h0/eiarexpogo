@@ -16,6 +16,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../types/navigation";
 
 import MenuOverlay from "../screens/MenuOverlay";
+import LogoutModal from "../components/LogoutModal";
 import { useAuth } from "../contexts/AuthContext";
 import { getDisplayFullName } from "../utils/profile";
 
@@ -37,6 +38,7 @@ const COLORS = {
 export default function Inicio() {
   const navigation = useNavigation<Nav>();
   const [menuVisible, setMenuVisible] = useState(false);
+  const [logoutVisible, setLogoutVisible] = useState(false);
   const { profile, user, logout } = useAuth();
 
   const userName = useMemo(() => {
@@ -44,15 +46,15 @@ export default function Inicio() {
   }, [profile, user]);
 
   const handleLogout = async () => {
-    try {
-      await logout();
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "Login" as never }],
-      });
-    } catch (e) {
-      console.log(e);
-    }
+    await logout();
+  };
+
+  const handleGoToLogin = () => {
+    setLogoutVisible(false);
+    navigation.reset({
+      index: 0,
+      routes: [{ name: "Login" as never }],
+    });
   };
 
   return (
@@ -74,7 +76,7 @@ export default function Inicio() {
           </TouchableOpacity>
 
           <View style={styles.rightIcons}>
-            <TouchableOpacity onPress={handleLogout}>
+            <TouchableOpacity onPress={() => setLogoutVisible(true)}>
               <Ionicons name="log-out-outline" size={26} color="#e8f5f7" />
             </TouchableOpacity>
           </View>
@@ -128,6 +130,14 @@ export default function Inicio() {
       <MenuOverlay
         visible={menuVisible}
         onClose={() => setMenuVisible(false)}
+        onRequestLogout={() => setLogoutVisible(true)}
+      />
+
+      <LogoutModal
+        visible={logoutVisible}
+        onClose={() => setLogoutVisible(false)}
+        onLogout={handleLogout}
+        onGoToLogin={handleGoToLogin}
       />
     </View>
   );

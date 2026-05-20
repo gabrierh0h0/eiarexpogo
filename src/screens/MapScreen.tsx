@@ -13,6 +13,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import MenuOverlay from "./MenuOverlay";
+import LogoutModal from "../components/LogoutModal";
+import { useLogoutFlow } from "../components/useLogoutFlow";
 import api from "../config/api";
 import { mision } from "../types/mision";
 
@@ -56,6 +58,7 @@ const MISSION_LOCATIONS: Record<string, { floor: number; x: number; y: number }>
 export default function MapScreen() {
     const navigation = useNavigation();
     const [menuVisible, setMenuVisible] = useState(false);
+    const logoutFlow = useLogoutFlow();
     const [selectedFloor, setSelectedFloor] = useState<number>(0);
     const [pins, setPins] = useState<Pin[]>([]);
     const [searchQuery, setSearchQuery] = useState("");
@@ -257,7 +260,9 @@ export default function MapScreen() {
             <MenuOverlay
                 visible={menuVisible}
                 onClose={() => setMenuVisible(false)}
+                onRequestLogout={logoutFlow.open}
             />
+            <LogoutModal {...logoutFlow.modalProps} />
         </View>
     );
 }

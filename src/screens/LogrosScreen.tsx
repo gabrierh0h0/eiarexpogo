@@ -18,6 +18,8 @@ import { logro } from "../types/logros";
 import LogroCard from "../services/LogroCard";
 import { LinearGradient } from "expo-linear-gradient";
 import MenuOverlay from "./MenuOverlay";
+import LogoutModal from "../components/LogoutModal";
+import { useLogoutFlow } from "../components/useLogoutFlow";
 
 const { height, width } = Dimensions.get("window");
 const STATUSBAR_PAD = (StatusBar.currentHeight ?? 0) + 12;
@@ -28,6 +30,7 @@ export default function LogrosScreen() {
   const [selectedLogro, setSelectedLogro] = useState<logro | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+  const logoutFlow = useLogoutFlow();
 
   useEffect(() => {
     const fetchLogros = async () => {
@@ -58,7 +61,9 @@ export default function LogrosScreen() {
               <Ionicons name="menu-outline" size={32} color="#fff" />
             </Pressable>
             <Text style={styles.logoText}>EIAR</Text>
-            <Ionicons name="log-out-outline" size={28} color="#fff" />
+            <Pressable onPress={logoutFlow.open} hitSlop={10}>
+              <Ionicons name="log-out-outline" size={28} color="#fff" />
+            </Pressable>
           </View>
         </View>
 
@@ -146,8 +151,13 @@ export default function LogrosScreen() {
       </Modal>
       {/* MENÚ LATERAL */}
       {menuVisible && (
-        <MenuOverlay visible={menuVisible} onClose={() => setMenuVisible(false)} />
+        <MenuOverlay
+          visible={menuVisible}
+          onClose={() => setMenuVisible(false)}
+          onRequestLogout={logoutFlow.open}
+        />
       )}
+      <LogoutModal {...logoutFlow.modalProps} />
     </View>
   );
 }

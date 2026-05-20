@@ -24,10 +24,19 @@ const COLORS = {
   divider: "rgba(255,255,255,0.08)",
 };
 
-type Props = { visible: boolean; onClose: () => void };
+type Props = {
+  visible: boolean;
+  onClose: () => void;
+  /**
+   * Si se provee, al pulsar "Cerrar sesión" el menú se cierra y se delega al
+   * padre (que normalmente muestra el LogoutModal). Si no se provee, se hace
+   * un logout directo (fallback heredado).
+   */
+  onRequestLogout?: () => void;
+};
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
-export default function MenuOverlay({ visible, onClose }: Props) {
+export default function MenuOverlay({ visible, onClose, onRequestLogout }: Props) {
   const navigation = useNavigation<Nav>();
   const slide = useRef(new Animated.Value(0)).current;
   const { width } = useWindowDimensions();
@@ -81,6 +90,14 @@ export default function MenuOverlay({ visible, onClose }: Props) {
   const handleLogout = async () => {
     if (loggingOut) return;
 
+    // Si el padre quiere mostrar su propio LogoutModal, delegamos.
+    if (onRequestLogout) {
+      onClose();
+      requestAnimationFrame(() => onRequestLogout());
+      return;
+    }
+
+    // Fallback: logout directo (comportamiento anterior).
     try {
       setLoggingOut(true);
       onClose();

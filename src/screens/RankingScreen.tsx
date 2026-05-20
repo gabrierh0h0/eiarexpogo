@@ -14,6 +14,8 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import api from "../config/api";
 import MenuOverlay from "./MenuOverlay";
+import LogoutModal from "../components/LogoutModal";
+import { useLogoutFlow } from "../components/useLogoutFlow";
 
 const { width } = Dimensions.get("window");
 const STATUSBAR_PAD = (StatusBar.currentHeight ?? 0) + 12;
@@ -31,6 +33,7 @@ export default function RankingScreen() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [menuVisible, setMenuVisible] = useState(false);
+    const logoutFlow = useLogoutFlow();
 
     const fetchRanking = async () => {
         try {
@@ -122,7 +125,12 @@ export default function RankingScreen() {
             </ScrollView>
             )}
 
-            <MenuOverlay visible={menuVisible} onClose={() => setMenuVisible(false)} />
+            <MenuOverlay
+                visible={menuVisible}
+                onClose={() => setMenuVisible(false)}
+                onRequestLogout={logoutFlow.open}
+            />
+            <LogoutModal {...logoutFlow.modalProps} />
         </View>
     );
 }

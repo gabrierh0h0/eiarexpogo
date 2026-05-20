@@ -18,6 +18,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useNavigation } from "@react-navigation/native";
 
 import MenuOverlay from "./MenuOverlay";
+import LogoutModal from "../components/LogoutModal";
 import { careers } from "../constants/careers";
 import { useAuth } from "../contexts/AuthContext";
 import {
@@ -44,6 +45,7 @@ export default function EditProfileScreen() {
   const { profile, user, refreshProfile, logout } = useAuth();
 
   const [menuVisible, setMenuVisible] = useState(false);
+  const [logoutVisible, setLogoutVisible] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [careerPickerOpen, setCareerPickerOpen] = useState(false);
@@ -204,15 +206,15 @@ export default function EditProfileScreen() {
   };
 
   const handleLogout = async () => {
-    try {
-      await logout();
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "Login" }],
-      });
-    } catch (error) {
-      console.warn(error);
-    }
+    await logout();
+  };
+
+  const handleGoToLogin = () => {
+    setLogoutVisible(false);
+    navigation.reset({
+      index: 0,
+      routes: [{ name: "Login" }],
+    });
   };
 
   return (
@@ -345,7 +347,10 @@ export default function EditProfileScreen() {
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+          <TouchableOpacity
+            style={styles.logoutBtn}
+            onPress={() => setLogoutVisible(true)}
+          >
             <Ionicons name="log-out-outline" size={24} color="#fff" />
             <Text style={styles.logoutText}>Cerrar sesión</Text>
           </TouchableOpacity>
@@ -353,7 +358,18 @@ export default function EditProfileScreen() {
       </ScrollView>
       )}
 
-      <MenuOverlay visible={menuVisible} onClose={() => setMenuVisible(false)} />
+      <MenuOverlay
+        visible={menuVisible}
+        onClose={() => setMenuVisible(false)}
+        onRequestLogout={() => setLogoutVisible(true)}
+      />
+
+      <LogoutModal
+        visible={logoutVisible}
+        onClose={() => setLogoutVisible(false)}
+        onLogout={handleLogout}
+        onGoToLogin={handleGoToLogin}
+      />
     </View>
   );
 }

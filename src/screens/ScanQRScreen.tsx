@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import MenuOverlay from "./MenuOverlay";
+import LogoutModal from "../components/LogoutModal";
+import { useLogoutFlow } from "../components/useLogoutFlow";
 import {
   View,
   Text,
@@ -30,6 +32,7 @@ export default function ScanQRScreen({ navigation }: any) {
   >("preview");
   const [errorMessage, setErrorMessage] = useState("");
   const [menuVisible, setMenuVisible] = useState(false);
+  const logoutFlow = useLogoutFlow();
 
   // Solicitar permisos de cámara
   useEffect(() => {
@@ -219,7 +222,12 @@ export default function ScanQRScreen({ navigation }: any) {
         </View>
       )}
       {/* MENÚ LATERAL */}
-      <MenuOverlay visible={menuVisible} onClose={() => setMenuVisible(false)} />
+      <MenuOverlay
+        visible={menuVisible}
+        onClose={() => setMenuVisible(false)}
+        onRequestLogout={logoutFlow.open}
+      />
+      <LogoutModal {...logoutFlow.modalProps} />
     </ImageBackground>
   );
 }
